@@ -1,0 +1,192 @@
+package main
+
+var miscTable = newMiscTable()
+
+func newMiscTable() *Table {
+	t := newTable()
+
+	for r := range 8 {
+		// not (HL)
+		if r != 6 {
+			t.def(0b01_000_000|r<<3, NOT_NEEDED, "in %r,(%n)", r)
+			t.def(0b01_000_001|r<<3, NOT_NEEDED, "out (%n),%r", r)
+		}
+	}
+
+	for i := range 4 {
+		ea := dd(i)
+		t.def(
+			0b01_000_010|i<<4, func() {
+				x := hlMux.Rd16()
+				y := ea.Rd16()
+
+				xHi, xLo := unword(x)
+				yHi, yLo := unword(y)
+
+				resLo := sbc(xLo, yLo, false)
+				resHi := sbc(xHi, yHi, flagC.get())
+
+				hlMux.Wr16(word(resHi, resLo))
+			},
+			"sbc %h,%d", i)
+
+		t.def(
+			0b01_001_010|i<<4, func() {
+				x := hlMux.Rd16()
+				y := ea.Rd16()
+
+				xHi, xLo := unword(x)
+				yHi, yLo := unword(y)
+
+				resLo := adc(xLo, yLo, false)
+				resHi := adc(xHi, yHi, flagC.get())
+
+				hlMux.Wr16(word(resHi, resLo))
+			},
+			"adc %h,%d", i)
+
+		t.def(
+			0b01_000_011|i<<4, func() {
+				loc := imm16()
+				w := ea.Rd16()
+				mem(loc).Wr16(w)
+			},
+			"ld (%N),%d", i)
+
+		t.def(
+			0b01_001_011|i<<4, func() {
+				loc := imm16()
+				w := mem(loc).Rd16()
+				ea.Wr16(w)
+			},
+			"ld %d,(%N)", i)
+	}
+
+	t.def(
+		0b01_000_100, func() {
+			a.Wr(sbc(0, a.Rd(), false))
+		},
+		"neg")
+
+	t.def(
+		0b01_000_101, func() {
+			irqEnable1 = irqEnable2
+			ret()
+		},
+		"retn")
+
+	t.def(0b01_001_101, ret, "reti")
+
+	// im n (note: encoded as 0, 2, 3)
+	for mode := range 3 {
+		encodedMode := mode
+		if mode > 0 {
+			encodedMode += 1
+		}
+		t.def(
+			0b01_000_110|encodedMode<<3, func() {
+				irqMode = IrqMode(mode)
+			},
+			"im %m", mode)
+	}
+
+	t.def(
+		0b01_000_111, func() {
+			irqPage = a.Rd()
+		},
+		"ld i,a")
+
+	t.def(
+		0b01_010_111, func() {
+			a.Wr(irqPage)
+			flagPV.put(irqEnable2)
+		},
+		"ld a,i")
+
+	t.def(0b01_001_111, NOT_NEEDED, "ld r,a")
+	t.def(0b01_011_111, NOT_NEEDED, "ld a,r")
+	t.def(0b01_100_111, NOT_NEEDED, "rrd")
+	t.def(0b01_101_111, NOT_NEEDED, "rld")
+
+	//0b10_1rd_000 // +ldi +ldir -ldd -lddr
+	//0b10_1rd_001 // -cpi +cpir -cpd -cpdr
+	//0b10_1rd_010 // -ini -inir -ind -indr
+	//0b10_1rd_011 // -outi -otir -outd -otdr
+
+	t.def(0b10_100_000, func() { ldi() }, "ldi")
+
+	t.def(
+		0b10_110_000, func() {
+			if ldi() {
+				jmp(pc.Rd16() - 2)
+			}
+		},
+		"ldir")
+
+	t.def(0b10_100_001, func() { cpi() }, "cpi")
+
+	t.def(
+		0b10_110_001, func() {
+			if cpi() {
+				jmp(pc.Rd16() - 2)
+			}
+		},
+		"cpir")
+
+	return t
+}
+
+func ldi() bool {
+	// (DE) <- (HL)
+	// DE <- DE + 1
+	// HL <- HL + 1
+	// BC <- BC – 1
+
+	src := hl.Rd16()
+	dst := de.Rd16()
+	count := bc.Rd16()
+
+	v := mem(src).Rd()
+	mem(dst).Wr(v)
+	dst += 1
+	src += 1
+	count -= 1
+
+	hl.Wr16(src)
+	de.Wr16(dst)
+	bc.Wr16(count)
+
+	flagH.reset()
+	flagPV.put(count != 0)
+	flagN.reset()
+
+	return count != 0
+}
+
+func cpi() bool {
+	// A - (HL)
+	// HL <- HL +1
+	// BC <- BC – 1
+
+	src := hl.Rd16()
+	count := bc.Rd16()
+
+	x := a.Rd()
+	y := mem(src).Rd()
+	src += 1
+	count -= 1
+
+	hl.Wr16(src)
+	bc.Wr16(count)
+
+	delta := x - y
+	c4 := (delta^x^y)&(1<<4) != 0
+
+	flagS.put(delta&(1<<7) != 0)
+	flagZ.put(delta == 0)
+	flagH.put(c4)
+	flagPV.put(count != 0)
+	flagN.set()
+
+	return !(count == 0 || delta == 0)
+}
