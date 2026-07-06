@@ -1,19 +1,27 @@
 package main
 
+// This file implements helpers for various z80 opcodes
+// and flag manipulation.
+
 import "fmt"
 
+// illegal panics with an "illegal" message when executed.
 func illegal() {
 	abort("illegal instruction")
 }
 
+// TODO aborts with a "TODO" message when executed.
 func TODO() {
 	abort("TODO")
 }
 
-func NOT_NEEDED() {
-	abort("unneeded instruction")
+// unimplemented aborts with an "unimplemented" message when executed.
+func unimplemented() {
+	abort("unimplemented instruction")
 }
 
+// abort is a helper that aborts the program with the given message,
+// and displays the disassembly of the last few instructions executed.
 func abort(msg string) {
 	fmt.Printf("\n")
 	dumpTraceLocs(16)
@@ -24,6 +32,8 @@ func abort(msg string) {
 	panic(msg)
 }
 
+// adc computes x+y+ci and returns the result.
+// Affects C,S,Z,PV,N,H flags.
 func adc(x uint8, y uint8, ci bool) uint8 {
 	res := x + y
 	if ci {
@@ -43,6 +53,8 @@ func adc(x uint8, y uint8, ci bool) uint8 {
 	return res
 }
 
+// sbc computes x-y-ci and returns the result.
+// Affects C,S,Z,PV,N,H flags.
 func sbc(x uint8, y uint8, ci bool) uint8 {
 	res := adc(x, ^y, !ci)
 	flagC.invert()
@@ -50,6 +62,8 @@ func sbc(x uint8, y uint8, ci bool) uint8 {
 	return res
 }
 
+// inc increments the byte at ea.
+// Affects S,Z,PV,N,H flags.
 func inc(ea ByteRef) {
 	data := ea.Rd()
 	res := data + 1
@@ -61,6 +75,8 @@ func inc(ea ByteRef) {
 	ea.Wr(res)
 }
 
+// dec decrements the byte at ea.
+// Affects S,Z,PV,N,H flags.
 func dec(ea ByteRef) {
 	data := ea.Rd()
 	res := data - 1
@@ -72,16 +88,18 @@ func dec(ea ByteRef) {
 	ea.Wr(res)
 }
 
-func setLogicFlags(newH bool) {
+// setLogicFlags sets common flags affected by the logic operations and, or, xor.
+// Affects C,S,Z,PV,N flags.
+func setLogicFlags() {
 	v := a.Rd()
 	flagS.put((v & (1 << 7)) != 0)
 	flagZ.put(v == 0)
-	flagH.put(newH)
 	setParity(v)
 	flagN.reset()
 	flagC.reset()
 }
 
+// setParity sets the PV flag according to the parity of the argument.
 func setParity(v uint8) {
 	v ^= v >> 1
 	v ^= v >> 2
@@ -89,29 +107,35 @@ func setParity(v uint8) {
 	flagPV.put((v & 1) == 0)
 }
 
-func add16(w uint16, x uint16) uint16 {
-	res := w + x
-	flagC.put(res < w)
+// add16 computes w1+w2 and returns the result.
+// Affects C,N flags.
+func add16(w1 uint16, w2 uint16) uint16 {
+	res := w1 + w2
+	flagC.put(res < w1)
 	flagN.reset()
 	return res
 }
 
+// push16 pushes a word to the stack.
 func push16(w uint16) {
 	loc := sp.Rd16() - 2
 	sp.Wr16(loc)
 	mem(loc).Wr16(w)
 }
 
+// pop16 returns a word popped from the stack.
 func pop16() uint16 {
 	loc := sp.Rd16()
 	sp.Wr16(loc + 2)
 	return mem(loc).Rd16()
 }
 
+// jmp sets the program counter to nn.
 func jmp(nn uint16) {
 	pc.Wr16(nn)
 }
 
+// jr adjusts the program counter by the given 8-bit relative offset.
 func jr(offset uint8) {
 	loc := pc.Rd16() + uint16(offset)
 	if offset >= 0x80 {
@@ -120,15 +144,19 @@ func jr(offset uint8) {
 	jmp(loc)
 }
 
+// call pushes the program counter and sets the program counter to nn.
 func call(nn uint16) {
 	push16(pc.Rd16())
 	jmp(nn)
 }
 
+// ret pops a word (return address) from the stack and jumps to it.
 func ret() {
 	jmp(pop16())
 }
 
+// rlc rotates the contents of ea left 1 bit position.
+// Bit 7 is copied to the C flag and also to bit 0.
 func rlc(ea ByteRef) (uint8, bool) {
 	v := ea.Rd()
 	v7 := v >> 7
@@ -198,10 +226,8 @@ func setRotFlags(_ uint8, co bool) {
 }
 
 func setExtRotFlags(v uint8, co bool) {
+	setRotFlags(v, co)
 	flagS.put(v&(1<<7) != 0)
 	flagZ.put(v == 0)
 	setParity(v)
-	flagC.put(co)
-	flagH.reset()
-	flagN.reset()
 }

@@ -4,9 +4,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/adrmcintyre/z80/audio/audiofilter"
-	ebiten_audio "github.com/hajimehoshi/ebiten/v2/audio"
 )
 
 type writeRequest struct {
@@ -48,6 +45,13 @@ var (
 	// simulated hardware state
 	voice [voiceCount]hwVoice // current state of the simulated hardware
 )
+
+// An hwVoice represents the current state of the registers for 1 voice.
+type hwVoice struct {
+	wave byte   // low 3 bits used – selects waveform 0-7 from ROM
+	vol  byte   // low nibble – 0 off to 15 loudest
+	freq uint32 // real hardware has 20 bits for voice 0; 16 bits voices 1, 2
+}
 
 func SetSoundEnable(value bool) {
 	soundEnabled.Store(value)
@@ -137,22 +141,4 @@ func loadRegisters() {
 		wave: byte(accWaveReg[15]),
 		vol:  byte(freqVolReg[15]),
 	}
-}
-
-// Audio encapsulates all of the audio state, and implements
-// the io.Reader interface necessary for ebiten to be able to
-// stream from it.
-type Audio struct {
-	// host playback
-	player       *ebiten_audio.Player
-	outputVolume int                // host output volume
-	sampleRate   int64              // sample rate
-	pos          int64              // number of samples emitted into the stream
-	filter       audiofilter.Filter // output filter
-}
-
-// NewAudio constructs an initialised Audio struct.
-func NewAudio() *Audio {
-	au := &Audio{}
-	return au
 }

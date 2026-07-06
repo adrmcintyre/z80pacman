@@ -1,15 +1,17 @@
 package main
 
+// This file defines the extended ("ED"-prefixed) z80 opcodes.
+
 var miscTable = newMiscTable()
 
-func newMiscTable() *Table {
+func newMiscTable() *opTable {
 	t := newTable()
 
 	for r := range 8 {
 		// not (HL)
 		if r != 6 {
-			t.def(0b01_000_000|r<<3, NOT_NEEDED, "in %r,(%n)", r)
-			t.def(0b01_000_001|r<<3, NOT_NEEDED, "out (%n),%r", r)
+			t.def(0b01_000_000|r<<3, unimplemented, "in %r,(%n)", r)
+			t.def(0b01_000_001|r<<3, unimplemented, "out (%n),%r", r)
 		}
 	}
 
@@ -105,10 +107,10 @@ func newMiscTable() *Table {
 		},
 		"ld a,i")
 
-	t.def(0b01_001_111, NOT_NEEDED, "ld r,a")
-	t.def(0b01_011_111, NOT_NEEDED, "ld a,r")
-	t.def(0b01_100_111, NOT_NEEDED, "rrd")
-	t.def(0b01_101_111, NOT_NEEDED, "rld")
+	t.def(0b01_001_111, unimplemented, "ld r,a")
+	t.def(0b01_011_111, unimplemented, "ld a,r")
+	t.def(0b01_100_111, unimplemented, "rrd")
+	t.def(0b01_101_111, unimplemented, "rld")
 
 	//0b10_1rd_000 // +ldi +ldir -ldd -lddr
 	//0b10_1rd_001 // -cpi +cpir -cpd -cpdr

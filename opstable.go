@@ -5,32 +5,60 @@ import (
 	"strings"
 )
 
-type Table struct {
-	fn  [256]func()
-	tpl [256]opTemplate
+// An opTable defines a set of opcodes.
+type opTable struct {
+	fn  [256]func()     // each entry is a closure that executes the opcode at that index
+	tpl [256]opTemplate // each entry is a template to help disassemble the opcode at that index
 }
 
+// An opTemplate contains templated text for disassembling an opcode.
 type opTemplate struct {
-	txt string
-	arg [2]int
+	txt string // templated text for the opcode
+	arg [2]int // argument values used when expanding txt
 }
 
-func newTable() *Table {
-	t := &Table{}
+// newTable returns a new opTable, with all instructions initially declared illegal.
+func newTable() *opTable {
+	t := &opTable{}
 	for i := range t.fn {
 		t.fn[i] = illegal
+		t.tpl[i] = opTemplate{txt: "illegal_opcode"}
 	}
 	return t
 }
 
-func (t *Table) def(opcode int, fn func(), txt string, args ...int) {
+// def defines an opcode.
+// <opcode> is the opcode;
+// <fn> is the closure to run during execution;
+// <txt> as a template used during disassembly
+// <args> is 0, 1 or 2 arguments for the template.
+func (t *opTable) def(opcode int, fn func(), txt string, args ...int) {
 	tpl := opTemplate{txt: txt}
 	copy(tpl.arg[:], args)
 	t.fn[opcode] = fn
 	t.tpl[opcode] = tpl
 }
 
-func (t *Table) text(pc uint16, opcode uint8, opargs []uint8, hlAlias string) string {
+// text returns the disassembly for an opcode.
+// <pc> is the program counter for the opcode, or the first prefix byte if any.
+// <opcode> is the opcode to disassemble.
+// <opargs> is any immediate bytes that follow the opcode.
+// <hlAlias> is "hl", "ix", or "iy" according to whether a DD or FD prefix is present.
+//
+// The following placeholders are expanded from the template txt:
+// %b - bit number (template arg)
+// %c - condition code (template arg)
+// %d - 16-bit register bc, de, hl/ix/iy, or sp (template arg)
+// %e - relative address (oparg)
+// %h - hl/ix/iy
+// %m - interrupt mode 0, 1, or 2 (template arg)
+// %n - immediate byte literal (oparg)
+// %N - immediate word literal (oparg)
+// %p - restart index (template arg)
+// %q - 16-bit register bc, de, hl/ix/iy, or af (template arg)
+// %r - 8-bit register b, c, d, e, h, l, (hl)/(ix+#d)/(iy+#d), or a
+// .... (template arg, plus oparg for an index displacement)
+func (t *opTable) text(pc uint16, opcode uint8, opargs []uint8, hlAlias string) string {
 	res := ""
 	k := 0
 	tpl := t.tpl[opcode]

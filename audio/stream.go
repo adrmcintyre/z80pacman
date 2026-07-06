@@ -30,46 +30,58 @@ const (
 	zeroOutput = uint16(0x0000) // value of zero-output
 )
 
-// An hwVoice represents the current state of the registers for 1 voice.
-type hwVoice struct {
-	wave byte   // low 3 bits used – selects waveform 0-7 from ROM
-	vol  byte   // low nibble – 0 off to 15 loudest
-	freq uint32 // real hardware has 20 bits for voice 0; 16 bits voices 1, 2
-}
+// host playback state
+var (
+	player     *ebiten_audio.Player
+	sampleRate int64              // sample rate
+	pos        int64              // number of samples emitted into the stream
+	filter     audiofilter.Filter // output filter
+)
 
-// Connect connects an ebiten audio player to
-// the output of the simulated hardware on the host.
-func (au *Audio) Connect(latency Latency) error {
+// Stream implements the io.Reader interface necessary for ebiten to be able to
+// stream from it.
+type Stream struct{}
+
+var stream *Stream
+
+// Init constructs an initialised Audio struct.
+func Init(latency Latency) error {
+	stream = &Stream{}
+
 	audioContext := ebiten_audio.NewContext(int(latency.sampleRate))
-	audioPlayer, err := audioContext.NewPlayer(au)
+	audioPlayer, err := audioContext.NewPlayer(stream)
 	if err != nil {
 		return err
 	}
-	au.player = audioPlayer
-	au.sampleRate = latency.sampleRate
-	au.filter = audiofilter.Compose{
+	player = audioPlayer
+	sampleRate = latency.sampleRate
+	filter = audiofilter.Compose{
 		&audiofilter.ExpMovingAvg{},
 		&audiofilter.Chebyshev{},
 	}
-	au.player.SetBufferSize(latency.bufferSize)
-	au.player.Play()
+	player.SetBufferSize(latency.bufferSize)
+	player.Play()
 	return nil
+}
+
+func Shutdown() {
+	stream.Close()
 }
 
 // Read is io.Reader's Read.
 //
 // Read fills buf with sampled audio according to hwVoice settings.
-func (au *Audio) Read(buf []byte) (int, error) {
+func (*Stream) Read(buf []byte) (int, error) {
 	const (
 		bytesPerValue  = 2
 		bytesPerSample = bytesPerValue * 2 // 2 x 16-bit samples (for left and right)
 	)
 
-	sampleRate := float64(au.sampleRate)
+	sampleRate := float64(sampleRate)
 	alignedLen := len(buf) / bytesPerSample * bytesPerSample
 
 	numSamples := alignedLen / bytesPerSample
-	numEmitted := au.pos / bytesPerSample
+	numEmitted := pos / bytesPerSample
 
 	t0 := time.Now().Add(queueDelay)
 	if !enableQueue {
@@ -102,7 +114,7 @@ func (au *Audio) Read(buf []byte) (int, error) {
 			}
 		}
 
-		output := zeroOutput + uint16(au.filter.Apply(float64(value)))
+		output := zeroOutput + uint16(filter.Apply(float64(value)))
 
 		// encode left channel
 		buf[4*i] = byte(output)
@@ -112,16 +124,16 @@ func (au *Audio) Read(buf []byte) (int, error) {
 		buf[4*i+3] = byte(output >> 8)
 	}
 
-	au.pos += int64(alignedLen)
+	pos += int64(alignedLen)
 
 	return alignedLen, nil
 }
 
 // Close is io.Closer's Close.
-func (au *Audio) Close() error {
-	_ = au.player.Close()
+func (*Stream) Close() error {
+	_ = player.Close()
 	return nil
 }
 
 // assert we implement the interface
-var _ io.Closer = (*Audio)(nil)
+var _ io.Closer = (*Stream)(nil)

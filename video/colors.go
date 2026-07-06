@@ -61,7 +61,7 @@ var (
 	ColorM [64]colorm.ColorM
 )
 
-// InitColors initialises the cache of ebiten.ColorM matrices corresponding to each
+// initColors initialises the cache of ebiten.ColorM matrices corresponding to each
 // colour palette.
 //
 // Fortuitously a colour matrix represents four colour channels R, G, B and A.
@@ -73,7 +73,7 @@ var (
 // and 11 with blue. Finally when compositing the bitmaps into a display frame,
 // we mix them with the colour matrix corresponding to the selected palette,
 // and R, G and B are interpreted as the desired colours.
-func InitColors() {
+func initColors() {
 	for i := range 64 {
 		mat := colorm.ColorM{}
 		for j := range 3 {

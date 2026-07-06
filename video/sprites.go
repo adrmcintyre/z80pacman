@@ -24,8 +24,8 @@ var spriteData = [spriteCount]spriteBitmap{
 // spriteImages contains an ebiten Image for each sprite identifier.
 var spriteImages [spriteCount]*ebiten.Image
 
-// InitSprites initialises the Image cache from the 2-bpp source data.
-func InitSprites() {
+// initSprites initialises the Image cache from the 2-bpp source data.
+func initSprites() {
 	for i, bitmap := range spriteData {
 		img := ebiten.NewImage(spriteWidth, spriteHeight)
 		for y, row := range bitmap {

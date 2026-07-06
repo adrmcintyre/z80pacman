@@ -1,8 +1,10 @@
 package main
 
+// This file defines the core (non-prefixed) z80 opcodes.
+
 var coreTable = newCoreTable()
 
-func newCoreTable() *Table {
+func newCoreTable() *opTable {
 	t := newTable()
 
 	for rrr := range 8 {
@@ -136,9 +138,9 @@ func newCoreTable() *Table {
 		t.def(opcode|0b010<<3, func() { a.Wr(sbc(a.Rd(), src.Rd(), false)) }, "sub "+arg, i)
 		t.def(opcode|0b011<<3, func() { a.Wr(sbc(a.Rd(), src.Rd(), flagC.get())) }, "sbc "+arg, i)
 
-		t.def(opcode|0b100<<3, func() { a.Wr(a.Rd() & src.Rd()); setLogicFlags(true) }, "and "+arg, i)
-		t.def(opcode|0b101<<3, func() { a.Wr(a.Rd() ^ src.Rd()); setLogicFlags(true) }, "xor "+arg, i)
-		t.def(opcode|0b110<<3, func() { a.Wr(a.Rd() | src.Rd()); setLogicFlags(true) }, "or "+arg, i)
+		t.def(opcode|0b100<<3, func() { a.Wr(a.Rd() & src.Rd()); setLogicFlags(); flagH.set() }, "and "+arg, i)
+		t.def(opcode|0b101<<3, func() { a.Wr(a.Rd() ^ src.Rd()); setLogicFlags(); flagH.reset() }, "xor "+arg, i)
+		t.def(opcode|0b110<<3, func() { a.Wr(a.Rd() | src.Rd()); setLogicFlags(); flagH.reset() }, "or "+arg, i)
 
 		t.def(opcode|0b111<<3, func() { _ = sbc(a.Rd(), src.Rd(), false) }, "cp "+arg, i)
 	}

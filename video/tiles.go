@@ -25,8 +25,8 @@ var tileData = [tileCount]tileBitmap{
 // tileImages defines an ebiten Image for each tile identifier.
 var tileImages [tileCount]*ebiten.Image
 
-// InitTiles initialises the Image cache for each tile.
-func InitTiles() {
+// initTiles initialises the Image cache for each tile.
+func initTiles() {
 	for i, bitmap := range tileData {
 		img := ebiten.NewImage(tileWidth, tileHeight)
 		for y, row := range bitmap {
@@ -42,7 +42,12 @@ func InitTiles() {
 // Draw paints the tile onto img.
 func (t Tile) Draw(img *ebiten.Image, x, y int, pal Palette) {
 	op := colorm.DrawImageOptions{}
-	op.GeoM.Translate(float64(x), float64(y))
-	op.GeoM.Scale(1, 1)
+	if flipScreen.Load() {
+		op.GeoM.Scale(-1, -1)
+		op.GeoM.Translate(float64(8+displayWidth+1-x), float64(8+displayHeight+1-y))
+	} else {
+		op.GeoM.Scale(1, 1)
+		op.GeoM.Translate(float64(x), float64(y))
+	}
 	colorm.DrawImage(img, tileImages[t], ColorM[pal], &op)
 }

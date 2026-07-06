@@ -31,66 +31,42 @@ var (
 	flagDebugTest  = flag.String("debug-test", "", "load specified test program")
 )
 
-func setWindowSize(aspectRatio float64, fillRatio float64) {
-	w, h := ebiten.Monitor().Size()
-	fw, fh := float64(w), float64(h)
-	if fw/fh > aspectRatio {
-		w = int(fh * aspectRatio)
-	} else {
-		h = int(fw / aspectRatio)
-	}
-	ebiten.SetWindowSize(int(float64(w)*fillRatio), int(float64(h)*fillRatio))
-}
-
 func main() {
 	flag.Parse()
-	debugInit()
-	switch *flagCoins {
-	case 0, 1, 2, 3:
-	default:
-		fmt.Printf("illegal -dip-coins")
-	}
-	switch *flagLives {
-	case 1, 2, 3, 5:
-	default:
-		fmt.Printf("illegal -dip-lives")
-	}
-	switch *flagBonus {
-	case 0, 10_000, 15_000, 20_000:
-	default:
-		fmt.Printf("illegal -dip-bonus")
-	}
+	ioParseFlags()
+	debugParseFlags()
 
-	ebiten.SetWindowTitle("ebiman")
-	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
-	setWindowSize(28.0/36.0, 0.75)
-	video.InitColors()
-	video.InitTiles()
-	video.InitSprites()
+	video.Init()
 
-	au := audio.NewAudio()
-	defer func() { _ = au.Close() }()
-
-	// connect to host's audio
-	if err := au.Connect(audio.LatencyLow); err != nil {
+	err := audio.Init(audio.LatencyLow)
+	defer audio.Shutdown()
+	if err != nil {
 		panic(err)
 	}
 
+	programInit()
 	runMachine()
+	ebiten.RunGame(&Game{})
+}
 
-	g := &Game{}
-	ebiten.RunGame(g)
+func programInit() {
+	if *flagDebugTest != "" {
+		loadTestProgram(*flagDebugTest)
+	} else {
+		loadProgram("pacman.rom")
+	}
+}
+
+func loadProgram(path string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Could not open %s: %v\n", path, err)
+		os.Exit(1)
+	}
+	copy(programROM[:], data)
 }
 
 func runMachine() {
-	if *flagDebugTest != "" {
-		loadTestProgram(*flagDebugTest)
-		startVblankTicker()
-	} else {
-		load("pacman.rom")
-		startVblankTicker()
-	}
-
 	powerOn()
 
 	sig := make(chan os.Signal, 1)
@@ -115,6 +91,7 @@ func runMachine() {
 func powerOn() {
 	resetMachine()
 	ioInit()
+	startVblankTicker()
 }
 
 func resetMachine() {
@@ -128,90 +105,4 @@ func resetDevices() {
 
 	irqLowRegister.Store(0)
 	watchdogRegister.Store(15 << 28)
-}
-
-func load(path string) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Could not open %s: %v\n", path, err)
-		os.Exit(1)
-	}
-	copy(programROM[:], data)
-
-	setBreakpoint(0x0038, Breakpoint{
-		dumpTiles:   false,
-		dumpProgram: false,
-		dumpTrace:   1000,
-	})
-}
-
-type Game struct{}
-
-func (g *Game) Update() error {
-	put := func(bits uint8, bit uint8, v bool) uint8 {
-		if v {
-			bits |= bit
-		} else {
-			bits &= ^bit
-		}
-		return bits
-	}
-
-	var in0 uint8
-	in0 = put(in0, In0_NotUp, !ebiten.IsKeyPressed(ebiten.KeyUp))
-	in0 = put(in0, In0_NotLeft, !ebiten.IsKeyPressed(ebiten.KeyLeft))
-	in0 = put(in0, In0_NotRight, !ebiten.IsKeyPressed(ebiten.KeyRight))
-	in0 = put(in0, In0_NotDown, !ebiten.IsKeyPressed(ebiten.KeyDown))
-	in0 = put(in0, In0_NotRackTest, !*flagRackTest)
-	in0 = put(in0, In0_RisingCoin1, !false)
-	in0 = put(in0, In0_RisingCoin2, !false)
-	in0 = put(in0, In0_NotCredit, !ebiten.IsKeyPressed(ebiten.KeyC))
-	in0_State.Store(uint32(in0))
-
-	var in1 uint8
-	in0 = put(in1, In1_NotUp, !false)
-	in1 = put(in1, In1_NotLeft, !false)
-	in1 = put(in1, In1_NotRight, !false)
-	in1 = put(in1, In1_NotDown, !false)
-	in1 = put(in1, In1_NotTest, (!*flagTest) != ebiten.IsKeyPressed(ebiten.KeyT))
-	in1 = put(in1, In1_NotStart1, !ebiten.IsKeyPressed(ebiten.Key1))
-	in1 = put(in1, In1_NotStart2, !ebiten.IsKeyPressed(ebiten.Key2))
-	in1 = put(in1, In1_NotCocktailMode, !*flagCocktail)
-	in1_State.Store(uint32(in1))
-
-	return nil
-}
-
-func (g *Game) Draw(screen *ebiten.Image) {
-	video.Draw(screen)
-}
-
-func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
-	const (
-		hTiles, vTiles        = 28, 36 // dimensions of display area in tiles
-		tileWidth, tileHeight = 8, 8   // dimensions of a tile in simulated pixels
-		border                = 8      // small border around display in simulated pixels
-
-		// calculate logical output size
-		logicalWidth  = float64(hTiles*tileWidth + 2*border)
-		logicalHeight = float64(vTiles*tileHeight + 2*border)
-		logicalAspect = float64(logicalWidth) / float64(logicalHeight)
-	)
-
-	var (
-		fOutsideWidth  = float64(outsideWidth)
-		fOutsideHeight = float64(outsideHeight)
-		outputAspect   = fOutsideWidth / fOutsideHeight
-
-		fScreenWidth  = logicalWidth
-		fScreenHeight = logicalHeight
-	)
-
-	// centre output in window
-	if outputAspect > logicalAspect {
-		fScreenWidth = logicalHeight * outputAspect
-	} else {
-		fScreenHeight = logicalWidth / outputAspect
-	}
-	return int(fScreenWidth), int(fScreenHeight)
 }

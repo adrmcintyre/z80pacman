@@ -1,9 +1,10 @@
 package main
 
+// This file defines the bit-manipulation ("CB"-prefixed) z80 opcodes.
+
 var bitTable = newBitTable()
 
-// CB prefix
-func newBitTable() *Table {
+func newBitTable() *opTable {
 	t := newTable()
 
 	for rrr := range 8 {

@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"sync/atomic"
 	"time"
 
 	"github.com/adrmcintyre/z80/audio"
 	"github.com/adrmcintyre/z80/video"
+	"github.com/hajimehoshi/ebiten/v2"
 )
 
 // Pac-man hardware specifics
@@ -53,39 +55,7 @@ const (
 	vBlankPeriod = time.Second * (hTotal * vTotal) / clockFreq
 )
 
-// While IrqEnable register is clear, ^IRQ remains HIGH.
-// When IrqEnable register is set, ^IRQ remains HIGH until VBLANK clocks in a 0, and ^IRQ goes low.
-
-func startVblankTicker() {
-	// Note watchdog RESET triggers after 16 VBLANK if not cleared.
-	var vblankTicker = time.NewTicker(vBlankPeriod)
-
-	go func() {
-		for range vblankTicker.C {
-			if irqEnableRegister.Load() {
-				dataBus.Store(irqLowRegister.Load())
-				irqAssertPin.Store(true)
-			}
-			if !*flagNoWatchdog {
-				if watchdogRegister.Load() == 0 {
-					fmt.Println("WATCHDOG!")
-					resetAssertPin.Store(true)
-				}
-			}
-			watchdogRegister.Add(15 << 28) // effectively -1
-		}
-	}()
-}
-
-var (
-	programROM [0x4000]uint8
-	programRAM [0x400]uint8
-
-	watchdogDisable  bool
-	watchdogRegister atomic.Uint32 // countdown from 15..0 (using top 4 bits)
-	irqLowRegister   atomic.Uint32 // lower 8 bits only
-)
-
+// Bits in in0 bank
 const (
 	In0_NotUp uint8 = 1 << iota
 	In0_NotLeft
@@ -97,10 +67,7 @@ const (
 	In0_NotCredit
 )
 
-var (
-	in0_State atomic.Uint32 // low 8 bits only
-)
-
+// Bits in in1 bank
 const (
 	In1_NotUp uint8 = 1 << iota
 	In1_NotLeft
@@ -112,10 +79,7 @@ const (
 	In1_NotCocktailMode
 )
 
-var (
-	in1_State atomic.Uint32 // low 8 bits only
-)
-
+// Bits in dipswitch bank
 const (
 	// 00=2 coins, 1 play; 01=1 coin, 2 plays; 10=1 coin, 1 play; 11=free play
 	DipCoins0 uint8 = 1 << iota
@@ -133,10 +97,7 @@ const (
 	LinkGhostNames // normal / alternative ghost names
 )
 
-var (
-	dipSwitchState atomic.Uint32 // low 8 bits only
-)
-
+// Options the software can write to control the hardware.
 const (
 	OptionIrqEnable      = iota // 1 enable, 0 disable
 	OptionSoundEnable           // 1 enable, 0 disable
@@ -149,8 +110,39 @@ const (
 )
 
 var (
+	programROM [0x4000]uint8
+	programRAM [0x400]uint8
+
+	watchdogRegister  atomic.Uint32 // counts down from 15..0 (using top 4 bits)
+	irqLowRegister    atomic.Uint32 // lower 8 bits only
 	irqEnableRegister atomic.Bool
+	in0_State         atomic.Uint32 // low 8 bits only
+	in1_State         atomic.Uint32 // low 8 bits only
+	dipSwitchState    atomic.Uint32 // low 8 bits only
 )
+
+// While IrqEnable register is clear, ^IRQ remains HIGH.
+// When IrqEnable register is set, ^IRQ remains HIGH until VBLANK clocks in a 0, and ^IRQ goes low.
+func startVblankTicker() {
+	// Note watchdog RESET triggers after 16 VBLANK if not cleared.
+	var vblankTicker = time.NewTicker(vBlankPeriod)
+
+	go func() {
+		for range vblankTicker.C {
+			if irqEnableRegister.Load() {
+				dataBus.Store(irqLowRegister.Load())
+				irqAssertPin.Store(true)
+			}
+			if !*flagNoWatchdog {
+				if watchdogRegister.Load() == 0 {
+					fmt.Println("WATCHDOG!")
+					resetAssertPin.Store(true)
+				}
+			}
+			watchdogRegister.Add(15 << 28) // subtract 1 from top 4 bits
+		}
+	}()
+}
 
 func writeOption(addr int, value bool) {
 	switch addr {
@@ -173,51 +165,83 @@ func writeOption(addr int, value bool) {
 	}
 }
 
-func ioInit() {
-	put := func(bits uint8, bit uint8, v bool) uint8 {
-		if v {
-			bits |= bit
-		} else {
-			bits &= ^bit
-		}
-		return bits
+func ioParseFlags() {
+	switch *flagCoins {
+	case 0, 1, 2, 3:
+	default:
+		fmt.Printf("illegal -dip-coins")
+		os.Exit(1)
 	}
+	switch *flagLives {
+	case 1, 2, 3, 5:
+	default:
+		fmt.Printf("illegal -dip-lives")
+		os.Exit(1)
+	}
+	switch *flagBonus {
+	case 0, 10_000, 15_000, 20_000:
+	default:
+		fmt.Printf("illegal -dip-bonus")
+		os.Exit(1)
+	}
+}
 
-	var in0 uint8
-	in0 = put(in0, In0_NotUp, !false)
-	in0 = put(in0, In0_NotLeft, !false)
-	in0 = put(in0, In0_NotRight, !false)
-	in0 = put(in0, In0_NotDown, !false)
-	in0 = put(in0, In0_NotRackTest, !*flagRackTest)
-	in0 = put(in0, In0_RisingCoin1, !false)
-	in0 = put(in0, In0_RisingCoin2, !false)
-	in0 = put(in0, In0_NotCredit, !false)
-	in0_State.Store(uint32(in0))
+func ioInit() {
+	dipsUpdate()
+	inputsUpdate()
+}
 
-	var in1 uint8
-	in1 = put(in1, In1_NotUp, !false)
-	in1 = put(in1, In1_NotLeft, !false)
-	in1 = put(in1, In1_NotRight, !false)
-	in1 = put(in1, In1_NotDown, !false)
-	in1 = put(in1, In1_NotTest, !*flagTest)
-	in1 = put(in1, In1_NotStart1, !false)
-	in1 = put(in1, In1_NotStart2, !false)
-	in1 = put(in1, In1_NotCocktailMode, !*flagCocktail)
-	in1_State.Store(uint32(in1))
+type mapOfBits map[uint8]bool
 
-	var dips uint8
-	dips = put(dips, DipCoins0, *flagCoins == 1 || *flagCoins == 2)
-	dips = put(dips, DipCoins1, *flagCoins == 2 || *flagCoins == 3)
-	dips = put(dips, DipLives0, *flagLives == 2 || *flagLives == 5)
-	dips = put(dips, DipLives1, *flagLives == 3 || *flagLives == 5)
-	dips = put(dips, DipBonus0, *flagBonus == 0 || *flagBonus == 15_000)
-	dips = put(dips, DipBonus1, *flagBonus == 0 || *flagBonus == 20_000)
-	dips = put(dips, LinkDifficulty, !*flagDifficult)
-	dips = put(dips, LinkGhostNames, !*flagAltGhosts)
+func (mob mapOfBits) Uint32() (v uint32) {
+	for i, bit := range mob {
+		if bit {
+			v |= uint32(i)
+		}
+	}
+	return v
+}
 
-	dipSwitchState.Store(uint32(dips))
+func dipsUpdate() {
+	dips := mapOfBits{
+		DipCoins0:      *flagCoins == 1 || *flagCoins == 2,
+		DipCoins1:      *flagCoins == 2 || *flagCoins == 3,
+		DipLives0:      *flagLives == 2 || *flagLives == 5,
+		DipLives1:      *flagLives == 3 || *flagLives == 5,
+		DipBonus0:      *flagBonus == 0 || *flagBonus == 15_000,
+		DipBonus1:      *flagBonus == 0 || *flagBonus == 20_000,
+		LinkDifficulty: !*flagDifficult,
+		LinkGhostNames: !*flagAltGhosts,
+	}.Uint32()
+	dipSwitchState.Store(dips)
+}
 
-	watchdogDisable = *flagNoWatchdog
+func inputsUpdate() {
+	in0 := mapOfBits{
+		In0_NotUp:       !ebiten.IsKeyPressed(ebiten.KeyUp),
+		In0_NotLeft:     !ebiten.IsKeyPressed(ebiten.KeyLeft),
+		In0_NotRight:    !ebiten.IsKeyPressed(ebiten.KeyRight),
+		In0_NotDown:     !ebiten.IsKeyPressed(ebiten.KeyDown),
+		In0_NotRackTest: !*flagRackTest,
+		In0_RisingCoin1: !false,
+		In0_RisingCoin2: !false,
+		In0_NotCredit:   !ebiten.IsKeyPressed(ebiten.KeyC),
+	}.Uint32()
+
+	// use same arrow keys for both players
+	in1 := mapOfBits{
+		In1_NotUp:           !ebiten.IsKeyPressed(ebiten.KeyUp),
+		In1_NotLeft:         !ebiten.IsKeyPressed(ebiten.KeyLeft),
+		In1_NotRight:        !ebiten.IsKeyPressed(ebiten.KeyRight),
+		In1_NotDown:         !ebiten.IsKeyPressed(ebiten.KeyDown),
+		In1_NotTest:         (!*flagTest) != ebiten.IsKeyPressed(ebiten.KeyT),
+		In1_NotStart1:       !ebiten.IsKeyPressed(ebiten.Key1),
+		In1_NotStart2:       !ebiten.IsKeyPressed(ebiten.Key2),
+		In1_NotCocktailMode: !*flagCocktail,
+	}.Uint32()
+
+	in0_State.Store(in0)
+	in1_State.Store(in1)
 }
 
 func ioWrite() {
@@ -233,7 +257,7 @@ func ioWrite() {
 // hardware to get the sprite number and x/y flip bits. This is
 // controlled by the U6,U5,U4 muxes in the sync bus controller.
 
-func memRead(addr uint16) uint8 {
+func busRead(addr uint16) uint8 {
 	var v uint8
 
 	// bit15 is ignored, so entire memory map repeats at 0x8000
@@ -242,7 +266,7 @@ func memRead(addr uint16) uint8 {
 	switch addr & 0x4000 {
 	case 0x0000:
 		// 0000..3fff - ROM
-		// skip memory tracing for ROM
+		// early exit to skip memory tracing for ROM
 		return programROM[addr]
 
 	case 0x4000:
@@ -294,7 +318,7 @@ func memRead(addr uint16) uint8 {
 	return v
 }
 
-func memWrite(addr uint16, data uint8) {
+func busWrite(addr uint16, data uint8) {
 	addr &^= 0x8000
 
 	if traceMem[addr] {
