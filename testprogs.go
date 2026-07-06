@@ -5,8 +5,11 @@ import (
 	"os"
 )
 
-var org uint16
+var (
+	org uint16 // address of next byte to assemble
+)
 
+// asm inserts 1 or more bytes into the program.
 func asm(op uint8, args ...uint8) {
 	programROM[org] = op
 	org++
@@ -15,11 +18,17 @@ func asm(op uint8, args ...uint8) {
 		org++
 	}
 }
+
+// rel returns a 1-byte relative reference to an address,
+// suitable for assembling relative jumps.
 func rel(dst uint16) uint8 {
 	return uint8(dst - (org + 2))
 }
 
+// loadTestProgram loads the specified test program.
 func loadTestProgram(prog string) {
+	// preamble to disable interrupts and then jump to
+	// selected program at 0x0100
 	org = 0x0000
 	asm(0xf3)             // di
 	asm(0x3e, 0x00)       // ld a, #00
@@ -38,6 +47,7 @@ func loadTestProgram(prog string) {
 		os.Exit(1)
 	}
 
+	// if we reach here, halt and dump
 	setBreakpoint(org, Breakpoint{
 		resume:      false,
 		dumpProgram: true,
@@ -45,6 +55,7 @@ func loadTestProgram(prog string) {
 	asm(0x76) // hlt
 }
 
+// test1 plays a chord (middle C, E, G) on the three audio channels.
 func test1() {
 	freq0 := (440 * 4096 / 375)
 	freq1 := (523 * 4096 / 375)
@@ -76,6 +87,7 @@ func test1() {
 	asm(0xdd, 0x36, 0x1f, 0x0f)             // max volume
 }
 
+// test2 plays a repeated ascending tone on the second audio channel.
 func test2() {
 	// labels
 	var (

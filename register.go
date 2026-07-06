@@ -75,7 +75,7 @@ func (hlIndMuxer HlIndMuxer) addr() Addr {
 		}
 		loc += uint16(index)
 	}
-	return mem(loc)
+	return ref(loc)
 }
 
 // reg selects an 8-bit register

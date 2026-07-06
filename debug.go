@@ -159,7 +159,7 @@ func dumpTrace(limit int) {
 	} else {
 		limit = min(limit, n)
 	}
-	i := pcTraceIndex - limit + 1
+	i := int(pcTraceIndex) - limit + 1
 	for range limit {
 		loc := pcTrace[(i+n)%n]
 		fmt.Printf("%04x %s\n", loc, disass(uint16(loc), programROM[loc:loc+4]))
@@ -175,7 +175,7 @@ func dumpTraceLocs(limit int) {
 	} else {
 		limit = min(limit, n)
 	}
-	i := pcTraceIndex - limit + 1
+	i := int(pcTraceIndex) - limit + 1
 	j := 0
 	for range limit {
 		loc := pcTrace[(i+n)%n]

@@ -46,7 +46,7 @@ func (Imm) Wr16(uint16) {
 // imm8 reads a byte from the instruction stream
 func imm8() uint8 {
 	loc := pc.Rd16()
-	n := mem(loc).Rd()
+	n := ref(loc).Rd()
 	trace = append(trace, n)
 	pc.Wr16(loc + 1)
 	return n
@@ -69,6 +69,7 @@ const (
 
 // define machine state
 var (
+	// core registers
 	b = new(Reg)
 	c = new(Reg)
 	d = new(Reg)
@@ -78,46 +79,55 @@ var (
 	a = new(Reg)
 	f = new(Reg)
 
+	// index register components
 	ixh = new(Reg)
 	ixl = new(Reg)
 	iyh = new(Reg)
 	iyl = new(Reg)
 
-	af    = RegPair{a, f}
-	bc    = RegPair{b, c}
-	de    = RegPair{d, e}
-	hl    = RegPair{h, l}
-	ix    = RegPair{ixh, ixl}
-	iy    = RegPair{iyh, iyl}
+	// register pairs
+	af = RegPair{a, f}
+	bc = RegPair{b, c}
+	de = RegPair{d, e}
+	hl = RegPair{h, l}
+	ix = RegPair{ixh, ixl}
+	iy = RegPair{iyh, iyl}
+
+	// dynamically adjusted during execution to point to hl, ix or iy
 	hlMux = RegPair{h, l}
 
+	pc = new(Reg16) // program counter
+	sp = new(Reg16) // stack pointer
+
+	// alternative register file for selected registers
 	bc2 = new(Reg16)
 	de2 = new(Reg16)
 	hl2 = new(Reg16)
 	af2 = new(Reg16)
 
-	pc = new(Reg16)
-	sp = new(Reg16)
+	halted = false // is processor currently halted, awaiting interrupt?
 
-	trace        = make([]uint8, 4)
-	pcHisto      [0x4000]int64
-	pcTrace      [100000]uint16
-	pcTraceIndex int
-
-	halted     = false
+	// irq enable flip-flops
 	irqEnable1 = false // iff1
 	irqEnable2 = false // iff2
-	irqMode    = IrqMode0
-	irqPage    uint8
 
-	indexMode IndexMode
-	gotIndex  bool
-	index     uint8
+	irqMode = IrqMode0 // selected interrupt mode
+	irqPage uint8      // page used by IrqMode2
+
+	indexMode IndexMode // has index prefix byte been seen?
+	gotIndex  bool      // have we retrieved an index offset byte yet?
+	index     uint8     // the index offset byte
 
 	dataBus        atomic.Uint32 // only lower 8 bits used
 	addressBus     atomic.Uint32 // only lower 16 bits used
-	irqAssertPin   atomic.Bool
-	resetAssertPin atomic.Bool
+	irqAssertPin   atomic.Bool   // has an irq been asserted externally?
+	resetAssertPin atomic.Bool   // has reset been asserted externally?
+
+	// for debugging
+	trace        = make([]uint8, 4) // last 4 bytes retrieved from instruction stream
+	pcHisto      [0x4000]int64      // histogram indexed by pc for each instruction executed
+	pcTrace      [65536]uint16      // last 64K values of pc (circular buffer)
+	pcTraceIndex uint16             // next pcTrace index to write to
 )
 
 func resetCPU() {
@@ -151,7 +161,7 @@ func stepCPU() bool {
 	prePC := pc.Rd16()
 	pcHisto[prePC]++
 	pcTrace[pcTraceIndex] = prePC
-	pcTraceIndex = (pcTraceIndex + 1) % len(pcTrace)
+	pcTraceIndex++
 
 	if stop := breakpointed(prePC); stop {
 		return false
@@ -228,7 +238,7 @@ func checkInterrupt() {
 		case IrqMode2:
 			low := uint8(dataBus.Load()) & 0xfe
 			ind := word(irqPage, low)
-			loc := mem(ind).Rd16()
+			loc := ref(ind).Rd16()
 			call(loc)
 		}
 	}

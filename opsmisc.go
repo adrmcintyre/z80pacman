@@ -53,14 +53,14 @@ func newMiscTable() *opTable {
 			0b01_000_011|i<<4, func() {
 				loc := imm16()
 				w := ea.Rd16()
-				mem(loc).Wr16(w)
+				ref(loc).Wr16(w)
 			},
 			"ld (%N),%d", i)
 
 		t.def(
 			0b01_001_011|i<<4, func() {
 				loc := imm16()
-				w := mem(loc).Rd16()
+				w := ref(loc).Rd16()
 				ea.Wr16(w)
 			},
 			"ld %d,(%N)", i)
@@ -140,18 +140,19 @@ func newMiscTable() *opTable {
 	return t
 }
 
+// ldi performs the following operation:
+// (DE) <- (HL) ; copy source to dest
+// DE <- DE + 1 ; increment dest pointer
+// HL <- HL + 1 ; increment source pointer
+// BC <- BC – 1 ; decrement counter
+// Affects H,PV,N flags.
 func ldi() bool {
-	// (DE) <- (HL)
-	// DE <- DE + 1
-	// HL <- HL + 1
-	// BC <- BC – 1
-
 	src := hl.Rd16()
 	dst := de.Rd16()
 	count := bc.Rd16()
 
-	v := mem(src).Rd()
-	mem(dst).Wr(v)
+	v := ref(src).Rd()
+	ref(dst).Wr(v)
 	dst += 1
 	src += 1
 	count -= 1
@@ -167,16 +168,17 @@ func ldi() bool {
 	return count != 0
 }
 
+// cpi performs the following operation:
+// A - (HL)     ; compare A with source
+// HL <- HL +1  ; increment source pointer
+// BC <- BC – 1 ; decrement counter
+// Affects S,Z,H,PV,N flags.
 func cpi() bool {
-	// A - (HL)
-	// HL <- HL +1
-	// BC <- BC – 1
-
 	src := hl.Rd16()
 	count := bc.Rd16()
 
 	x := a.Rd()
-	y := mem(src).Rd()
+	y := ref(src).Rd()
 	src += 1
 	count -= 1
 

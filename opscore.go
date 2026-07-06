@@ -34,15 +34,15 @@ func newCoreTable() *opTable {
 	// overwrite 0x76 with hlt (would be ld (hl),(hl))
 	t.def(0b01_110_110, func() { halted = true }, "hlt")
 
-	t.def(0b00_000_010, func() { mem(bc.Rd16()).Wr(a.Rd()) }, "ld (bc),a")
-	t.def(0b00_001_010, func() { a.Wr(mem(bc.Rd16()).Rd()) }, "ld a,(bc)")
-	t.def(0b00_010_010, func() { mem(de.Rd16()).Wr(a.Rd()) }, "ld (de),a")
-	t.def(0b00_011_010, func() { a.Wr(mem(de.Rd16()).Rd()) }, "ld a,(de)")
+	t.def(0b00_000_010, func() { ref(bc.Rd16()).Wr(a.Rd()) }, "ld (bc),a")
+	t.def(0b00_001_010, func() { a.Wr(ref(bc.Rd16()).Rd()) }, "ld a,(bc)")
+	t.def(0b00_010_010, func() { ref(de.Rd16()).Wr(a.Rd()) }, "ld (de),a")
+	t.def(0b00_011_010, func() { a.Wr(ref(de.Rd16()).Rd()) }, "ld a,(de)")
 
-	t.def(0b00_100_010, func() { mem(imm16()).Wr16(hlMux.Rd16()) }, "ld (%N),%h")
-	t.def(0b00_101_010, func() { hlMux.Wr16(mem(imm16()).Rd16()) }, "ld %h,(%N)")
-	t.def(0b00_110_010, func() { mem(imm16()).Wr(a.Rd()) }, "ld (%N),a")
-	t.def(0b00_111_010, func() { a.Wr(mem(imm16()).Rd()) }, "ld a,(%N)")
+	t.def(0b00_100_010, func() { ref(imm16()).Wr16(hlMux.Rd16()) }, "ld (%N),%h")
+	t.def(0b00_101_010, func() { hlMux.Wr16(ref(imm16()).Rd16()) }, "ld %h,(%N)")
+	t.def(0b00_110_010, func() { ref(imm16()).Wr(a.Rd()) }, "ld (%N),a")
+	t.def(0b00_111_010, func() { a.Wr(ref(imm16()).Rd()) }, "ld a,(%N)")
 
 	for i := range 4 {
 		dst := dd(i)
@@ -98,7 +98,7 @@ func newCoreTable() *opTable {
 
 	t.def(
 		0b11_100_011, func() {
-			addr := mem(sp.Rd16())
+			addr := ref(sp.Rd16())
 			tmp := hlMux.Rd16()
 			data := addr.Rd16()
 			addr.Wr16(tmp)
@@ -212,10 +212,10 @@ func newCoreTable() *opTable {
 		t.def(0b00_001_011|i<<4, func() { ea.Wr16(ea.Rd16() - 1) }, "dec %d", i)
 	}
 
-	t.def(0b00_000_111, func() { setRotFlags(rlc(a)) }, "rlca")
-	t.def(0b00_001_111, func() { setRotFlags(rrc(a)) }, "rrca")
-	t.def(0b00_010_111, func() { setRotFlags(rl(a, flagC.get())) }, "rla")
-	t.def(0b00_011_111, func() { setRotFlags(rr(a)) }, "rra")
+	t.def(0b00_000_111, func() { rlc(a) }, "rlca")
+	t.def(0b00_001_111, func() { rrc(a) }, "rrca")
+	t.def(0b00_010_111, func() { rl(a, flagC.get()) }, "rla")
+	t.def(0b00_011_111, func() { rr(a, flagC.get()) }, "rra")
 
 	t.def(0b11_000_011, func() { jmp(imm16()) }, "jp %N")
 

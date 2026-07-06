@@ -27,7 +27,7 @@ func (addr Addr) Wr16(w uint16) {
 	(addr + 1).Wr(hi)
 }
 
-// mem returns a reference to the specified memory address.
-func mem(addr uint16) Addr {
+// ref returns a reference to the specified memory address.
+func ref(addr uint16) Addr {
 	return Addr(addr)
 }

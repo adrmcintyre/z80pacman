@@ -120,14 +120,14 @@ func add16(w1 uint16, w2 uint16) uint16 {
 func push16(w uint16) {
 	loc := sp.Rd16() - 2
 	sp.Wr16(loc)
-	mem(loc).Wr16(w)
+	ref(loc).Wr16(w)
 }
 
 // pop16 returns a word popped from the stack.
 func pop16() uint16 {
 	loc := sp.Rd16()
 	sp.Wr16(loc + 2)
-	return mem(loc).Rd16()
+	return ref(loc).Rd16()
 }
 
 // jmp sets the program counter to nn.
@@ -157,76 +157,103 @@ func ret() {
 
 // rlc rotates the contents of ea left 1 bit position.
 // Bit 7 is copied to the C flag and also to bit 0.
-func rlc(ea ByteRef) (uint8, bool) {
+// Affects C,N,H flags.
+func rlc(ea ByteRef) uint8 {
 	v := ea.Rd()
 	v7 := v >> 7
-	res, co := v<<1|v7, v7 != 0
+	res := v<<1 | v7
 	ea.Wr(res)
-	return res, co
+	setRotFlags(v7 != 0)
+	return res
 }
 
-func rrc(ea ByteRef) (uint8, bool) {
+// rrc rotates the contents of ea right 1 bit position.
+// Bit 0 is copied to the C flag and also to bit 7.
+// Affects C,N,H flags.
+func rrc(ea ByteRef) uint8 {
 	v := ea.Rd()
 	v0 := v & 1
-	res, co := v>>1|v0<<7, v0 != 0
+	res := v>>1 | v0<<7
 	ea.Wr(res)
-	return res, co
+	setRotFlags(v0 != 0)
+	return res
 }
 
-func rl(ea ByteRef, ci bool) (uint8, bool) {
+// rl rotates the contents of ea left 1 bit position.
+// Bit 7 is copied to the C flag, and ci is copied to bit 0.
+// Affects C,N,H flags.
+func rl(ea ByteRef, ci bool) uint8 {
 	v := ea.Rd()
 	v7 := v >> 7
-	res, co := v<<1, v7 != 0
+	res := v << 1
 	if ci {
 		res |= 1
 	}
 	ea.Wr(res)
-	return res, co
+	setRotFlags(v7 != 0)
+	return res
 }
 
-func rr(ea ByteRef) (uint8, bool) {
+// rr rotates the contents of ea right 1 bit position through the C flag.
+// Bit 0 is copied to the C flag, and ci is copied to bit 7.
+// Affects C,N,H flags.
+func rr(ea ByteRef, ci bool) uint8 {
 	v := ea.Rd()
 	v0 := v & 1
-	res, co := v>>1, v0 != 0
-	if flagC.get() {
+	res := v >> 1
+	if ci {
 		res |= 1 << 7
 	}
 	ea.Wr(res)
-	return res, co
+	setRotFlags(v0 != 0)
+	return res
 }
 
-func sla(ea ByteRef) (uint8, bool) {
+func sla(ea ByteRef) uint8 {
 	v := ea.Rd()
 	v7 := v >> 7
-	res, co := v<<1, v7 != 0
+	res := v << 1
 	ea.Wr(res)
-	return res, co
+	setRotFlags(v7 != 0)
+	return res
 }
 
-func sra(ea ByteRef) (uint8, bool) {
+// sra shifts the contents of ea right 1 bit position. Bit 0 is copied to
+// the C flag. The contents of bit 7 remain unchanged.
+// Affects C,N,H flags.
+func sra(ea ByteRef) uint8 {
 	v := ea.Rd()
 	v0 := v & 1
-	res, co := (v>>1)|(v&(1<<7)), v0 != 0
+	res := (v >> 1) | (v & (1 << 7))
 	ea.Wr(res)
-	return res, co
+	setRotFlags(v0 != 0)
+	return res
 }
 
-func srl(ea ByteRef) (uint8, bool) {
+// srl shifts the contents of ea right 1 bit position.
+// Bit 0 is copied to the C flag.
+// Affects C,N,H flags.
+func srl(ea ByteRef) uint8 {
 	v := ea.Rd()
 	v0 := v & 1
-	res, co := v>>1, v0 != 0
+	res := v >> 1
 	ea.Wr(res)
-	return res, co
+	setRotFlags(v0 != 0)
+	return res
 }
 
-func setRotFlags(_ uint8, co bool) {
+// setRotFlags sets common flags used by the shift and rotate instructions.
+// Sets the C flag is set according to co; clears the H and N flags.
+func setRotFlags(co bool) {
 	flagC.put(co)
 	flagH.reset()
 	flagN.reset()
 }
 
-func setExtRotFlags(v uint8, co bool) {
-	setRotFlags(v, co)
+// setExtRotFlags sets additional flags used by extended shift and rotate instructions,
+// according to the result of the shift supplied by v.
+// Affects S,Z,PV flags.
+func setExtRotFlags(v uint8) {
 	flagS.put(v&(1<<7) != 0)
 	flagZ.put(v == 0)
 	setParity(v)
