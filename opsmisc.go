@@ -23,8 +23,9 @@ func newMiscTable() *Table {
 				xHi, xLo := unword(x)
 				yHi, yLo := unword(y)
 
-				resLo := sbc(xLo, yLo, false)
+				resLo := sbc(xLo, yLo, flagC.get())
 				resHi := sbc(xHi, yHi, flagC.get())
+				flagZ.put(resLo == 0 && resHi == 0)
 
 				hlMux.Wr16(word(resHi, resLo))
 			},
@@ -38,8 +39,9 @@ func newMiscTable() *Table {
 				xHi, xLo := unword(x)
 				yHi, yLo := unword(y)
 
-				resLo := adc(xLo, yLo, false)
+				resLo := adc(xLo, yLo, flagC.get())
 				resHi := adc(xHi, yHi, flagC.get())
+				flagZ.put(resLo == 0 && resHi == 0)
 
 				hlMux.Wr16(word(resHi, resLo))
 			},

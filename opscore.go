@@ -15,10 +15,19 @@ func newCoreTable() *Table {
 				"ld %r,%r", rrr, sss)
 
 		}
-		t.def(
-			0b00_000_110|(rrr<<3),
-			func() { dst.Wr(imm8()) },
-			"ld %r,%n", rrr)
+	}
+	for rrr := range 8 {
+		dst := reg(rrr)
+		ld_r_n := func() { dst.Wr(imm8()) }
+		if rrr == 6 {
+			// Special case to cover "ld (ix+#d),n" / "ld (iy+#d),n"
+			// we need to ensure the displacement <d> is read *before* the value <n>
+			ld_r_n = func() {
+				ea := hlIndMuxer.addr()
+				ea.Wr(imm8())
+			}
+		}
+		t.def(0b00_000_110|(rrr<<3), ld_r_n, "ld %r,%n", rrr)
 	}
 	// overwrite 0x76 with hlt (would be ld (hl),(hl))
 	t.def(0b01_110_110, func() { halted = true }, "hlt")
@@ -154,7 +163,7 @@ func newCoreTable() *Table {
 					flagC.set()
 				}
 				if hIn {
-					flagH.put((value & 0x0f) < 6) // TODO check logic
+					flagH.put((value & 0x0f) < 6)
 				}
 			} else {
 				if hIn || ((value & 0xf) > 0x09) {
@@ -164,7 +173,7 @@ func newCoreTable() *Table {
 					value += 0x60
 					flagC.set()
 				}
-				flagH.put((value & 0x0f) >= 0x0a) // TODO check logic
+				flagH.put((value & 0x0f) >= 0x0a)
 			}
 			a.Wr(value)
 			flagS.put((value & (1 << 7)) != 0)
@@ -187,7 +196,12 @@ func newCoreTable() *Table {
 	t.def(0b00_000_000, func() {}, "nop")
 
 	t.def(0b11_110_011, func() { irqEnable1 = false }, "di")
-	t.def(0b11_111_011, func() { irqEnable1 = true; irqEnable2 = true }, "ei")
+	t.def(0b11_111_011, func() {
+		irqEnable1 = true
+		irqEnable2 = true
+		//TODO - note, any pending interrupt should not be
+		//accepted until *after* the instruction following this
+	}, "ei")
 
 	for i := range 4 {
 		ea := dd(i)

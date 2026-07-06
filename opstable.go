@@ -67,7 +67,7 @@ func (t *Table) text(pc uint16, opcode uint8, opargs []uint8, hlAlias string) st
 				n -= 0x100
 			}
 			k++
-			res += fmt.Sprintf("$%04x", pc+2+n)
+			res += fmt.Sprintf("#%04x", pc+2+n)
 		case 'h':
 			res += hlAlias
 		case 'm':
@@ -77,14 +77,18 @@ func (t *Table) text(pc uint16, opcode uint8, opargs []uint8, hlAlias string) st
 		case 'n':
 			n := opargs[k]
 			k++
-			res += fmt.Sprintf("$%02x", n)
+			if n < 10 {
+				res += fmt.Sprintf("#%d", n)
+			} else {
+				res += fmt.Sprintf("#%02x", n)
+			}
 		case 'N':
 			nn := word(opargs[k+1], opargs[k])
 			k += 2
-			res += fmt.Sprintf("$%04x", nn)
+			res += fmt.Sprintf("#%04x", nn)
 		case 'p':
 			// reset
-			res += fmt.Sprintf("$%d", tpl.arg[j]*8)
+			res += fmt.Sprintf("#%02x", tpl.arg[j]*8)
 			j++
 		case 'q':
 			regs := [4]string{"bc", "de", "hl", "af"}
@@ -102,7 +106,11 @@ func (t *Table) text(pc uint16, opcode uint8, opargs []uint8, hlAlias string) st
 			if rrr == 6 && hlAlias != "hl" {
 				offset := opargs[k]
 				k++
-				res += fmt.Sprintf("(%s+$%02x)", hlAlias, offset)
+				if offset < 10 {
+					res += fmt.Sprintf("(%s+#%d)", hlAlias, offset)
+				} else {
+					res += fmt.Sprintf("(%s+#%02x)", hlAlias, offset)
+				}
 			} else {
 				res += regs[rrr]
 			}

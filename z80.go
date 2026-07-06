@@ -1,6 +1,10 @@
 package main
 
-import "sync/atomic"
+import (
+	"fmt"
+	"sync/atomic"
+	"time"
+)
 
 // An IrqMode represents an interrupt handling mode.
 type IrqMode int
@@ -95,7 +99,10 @@ var (
 	pc = new(Reg16)
 	sp = new(Reg16)
 
-	trace = make([]uint8, 4)
+	trace        = make([]uint8, 4)
+	pcHisto      [0x4000]int64
+	pcTrace      [100000]uint16
+	pcTraceIndex int
 
 	halted     = false
 	irqEnable1 = false // iff1
@@ -114,6 +121,8 @@ var (
 )
 
 func resetCPU() {
+	fmt.Println("RESET!")
+
 	// reset all registers
 	for _, r := range []WordRef{af, bc, de, hl, ix, iy, bc2, de2, hl2, af2, pc, sp} {
 		r.Wr16(0)
@@ -131,74 +140,96 @@ func resetCPU() {
 	addressBus.Store(0)
 }
 
-func runCPU() {
-	for {
-		if resetAssertPin.Load() {
-			resetMachine()
+func stepCPU() bool {
+	checkReset()
+	checkInterrupt()
+
+	if halted {
+		return true
+	}
+
+	prePC := pc.Rd16()
+	pcHisto[prePC]++
+	pcTrace[pcTraceIndex] = prePC
+	pcTraceIndex = (pcTraceIndex + 1) % len(pcTrace)
+
+	if stop := breakpointed(prePC); stop {
+		return false
+	}
+
+	if *flagDelayHack {
+		if *pc == 0x32ed {
+			time.Sleep(100 * time.Millisecond)
 		}
+	}
 
-		if irqEnable1 && irqAssertPin.Load() {
-			halted = false
-			irqAssertPin.Store(false)
-			switch irqMode {
-			case IrqMode0:
-				panic("irq mode 0 not implemented")
-			case IrqMode1:
-				call(0x38)
-			case IrqMode2:
-				low := uint8(dataBus.Load()) & 0xfe
-				loc := mem(word(irqPage, low)).Rd16()
-				call(loc)
-			}
+	nextInstruction()
+
+	if *flagTrace {
+		traceInstruction(prePC)
+	}
+	return true
+}
+
+func nextInstruction() {
+	trace = trace[:0]
+	indexMode = IndexModeNone
+	gotIndex = false
+	hlMux = hl
+	opcode := imm8()
+
+	t := coreTable
+
+	switch opcode {
+	case 0xdd, 0xfd:
+		if opcode == 0xdd {
+			indexMode = IndexModeIX
+			hlMux = ix
+		} else {
+			indexMode = IndexModeIY
+			hlMux = iy
 		}
+		opcode = imm8()
+		if opcode == 0xcb {
+			index = imm8()
+			gotIndex = true
 
-		if halted {
-			continue
-		}
-
-		prePC := pc.Rd16()
-
-		if stop := breakpointed(prePC); stop {
-			break
-		}
-
-		trace = trace[:0]
-		indexMode = IndexModeNone
-		gotIndex = false
-		hlMux = hl
-		opcode := imm8()
-
-		t := coreTable
-
-		switch opcode {
-		case 0xdd, 0xfd:
-			if opcode == 0xdd {
-				indexMode = IndexModeIX
-				hlMux = ix
-			} else {
-				indexMode = IndexModeIY
-				hlMux = iy
-			}
-			opcode = imm8()
-			if opcode == 0xcb {
-				index = imm8()
-				gotIndex = true
-
-				opcode = imm8()
-				t = bitTable
-			}
-		case 0xcb:
 			opcode = imm8()
 			t = bitTable
-		case 0xed:
-			opcode = imm8()
-			t = miscTable
 		}
+	case 0xcb:
+		opcode = imm8()
+		t = bitTable
+	case 0xed:
+		opcode = imm8()
+		t = miscTable
+	}
 
-		t.fn[opcode]()
+	t.fn[opcode]()
+}
 
-		if traceOn {
-			traceInstruction(prePC)
+func checkReset() {
+	if resetAssertPin.Load() {
+		resetMachine()
+	}
+}
+
+func checkInterrupt() {
+	if irqEnable1 && irqAssertPin.Load() {
+		irqEnable1 = false
+		irqEnable2 = false
+		halted = false
+		irqAssertPin.Store(false)
+		switch irqMode {
+		case IrqMode0:
+			panic("irq mode 0 not implemented")
+		case IrqMode1:
+			call(0x38)
+		case IrqMode2:
+			low := uint8(dataBus.Load()) & 0xfe
+			ind := word(irqPage, low)
+			loc := mem(ind).Rd16()
+			call(loc)
 		}
 	}
 }

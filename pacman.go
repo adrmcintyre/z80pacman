@@ -2,9 +2,11 @@ package main
 
 import (
 	"fmt"
-	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/adrmcintyre/z80/audio"
+	"github.com/adrmcintyre/z80/video"
 )
 
 // Pac-man hardware specifics
@@ -60,47 +62,39 @@ func startVblankTicker() {
 
 	go func() {
 		for range vblankTicker.C {
-			fmt.Println("VBLANK!")
-			if optionsRegister[OptionIrqEnable].Load() {
+			if irqEnableRegister.Load() {
 				dataBus.Store(irqLowRegister.Load())
 				irqAssertPin.Store(true)
 			}
-			if watchDogRegister.Load() == 0 {
-				fmt.Println("WATCHDOG TIMEOUT!")
-				resetAssertPin.Store(true)
+			if !*flagNoWatchdog {
+				if watchdogRegister.Load() == 0 {
+					fmt.Println("WATCHDOG!")
+					resetAssertPin.Store(true)
+				}
 			}
-			watchDogRegister.Add(0xffffffff) // -1
+			watchdogRegister.Add(15 << 28) // effectively -1
 		}
 	}()
 }
 
 var (
-	programROM    [0x4000]uint8
-	tileRAM       [0x400]uint8 // videoMutex controls access
-	paletteRAM    [0x400]uint8 // videoMutex controls access
-	programRAM    [0x3f0]uint8
-	spriteLookRAM [0x010]uint8 // videoMutex controls access
+	programROM [0x4000]uint8
+	programRAM [0x400]uint8
 
-	audioMutex           sync.Mutex
-	audioAccWaveRegister [16]uint8 // values in [0..15]; audioMutex controls access
-	audioFreqVolRegister [16]uint8 // values in [0..15]; audioMutex controls access
-
-	videoMutex        sync.Mutex
-	spritePosRegister [16]uint8 // videoMutex controls access
-
-	watchDogRegister atomic.Uint32 // countdown from 15..0
+	watchdogDisable  bool
+	watchdogRegister atomic.Uint32 // countdown from 15..0 (using top 4 bits)
 	irqLowRegister   atomic.Uint32 // lower 8 bits only
 )
 
 const (
-	In0_NotJoystickUp uint8 = 1 << iota
-	In0_NotJoystickLeft
-	In0_NotJoystickRight
-	In0_NotJoystickDown
-	In0_NotRackAdvance  // (go to next level)
-	In0_RisingCoinSlot1 // trigger by going from 0 to 1
-	In0_RisingCoinSlot2 // trigger by going from 0 to 1
-	In0_NotCreditButton
+	In0_NotUp uint8 = 1 << iota
+	In0_NotLeft
+	In0_NotRight
+	In0_NotDown
+	In0_NotRackTest // (go to next level)
+	In0_RisingCoin1 // trigger by going from 0 to 1
+	In0_RisingCoin2 // trigger by going from 0 to 1
+	In0_NotCredit
 )
 
 var (
@@ -108,13 +102,13 @@ var (
 )
 
 const (
-	In1_NotJoystickUp uint8 = 1 << iota
-	In1_NotJoystickLeft
-	In1_NotJoystickRight
-	In1_NotJoystickDown
-	In1_NotBoardTest
-	In1_NotP1Start
-	In1_NotP2Start
+	In1_NotUp uint8 = 1 << iota
+	In1_NotLeft
+	In1_NotRight
+	In1_NotDown
+	In1_NotTest
+	In1_NotStart1
+	In1_NotStart2
 	In1_NotCocktailMode
 )
 
@@ -123,14 +117,20 @@ var (
 )
 
 const (
+	// 00=2 coins, 1 play; 01=1 coin, 2 plays; 10=1 coin, 1 play; 11=free play
 	DipCoins0 uint8 = 1 << iota
 	DipCoins1
+
+	// lives: 00=1 life, 01=2 lives, 10=3 lives, 11=5 lives
 	DipLives0
 	DipLives1
-	DipBonus2
+
+	// extra life at 00=10,000, 01=15,000, 10=20,000, 11=none
+	DipBonus0
 	DipBonus1
-	DipDifficulty
-	DipGhostNames
+
+	LinkDifficulty // normal / hard (shorter blue/return times)
+	LinkGhostNames // normal / alternative ghost names
 )
 
 var (
@@ -149,29 +149,75 @@ const (
 )
 
 var (
-	optionsRegister [8]atomic.Bool
+	irqEnableRegister atomic.Bool
 )
 
-func ioInit() {
-	in0_State.Store(uint32(0 |
-		In0_NotJoystickUp |
-		In0_NotJoystickLeft |
-		In0_NotJoystickRight |
-		In0_NotJoystickDown |
-		In0_NotRackAdvance |
-		In0_RisingCoinSlot1 |
-		In0_RisingCoinSlot2 |
-		In0_NotCreditButton))
+func writeOption(addr int, value bool) {
+	switch addr {
+	case OptionIrqEnable:
+		irqEnableRegister.Store(value)
+	case OptionSoundEnable:
+		audio.SetSoundEnable(value)
+	case OptionAuxBoardEnable:
+		// do nothing
+	case OptionFlipScreen:
+		video.SetFlipScreen(value)
+	case OptionPlayer1Lamp:
+		video.SetPlayer1Lamp(value)
+	case OptionPlayer2Lamp:
+		video.SetPlayer2Lamp(value)
+	case OptionCoinLockout:
+		// do nothing
+	case OptionCoinCounter:
+		// do nothing
+	}
+}
 
-	in1_State.Store(uint32(0 |
-		In1_NotJoystickUp |
-		In1_NotJoystickLeft |
-		In1_NotJoystickRight |
-		In1_NotJoystickDown |
-		In1_NotBoardTest |
-		In1_NotP1Start |
-		In1_NotP2Start |
-		In1_NotCocktailMode))
+func ioInit() {
+	put := func(bits uint8, bit uint8, v bool) uint8 {
+		if v {
+			bits |= bit
+		} else {
+			bits &= ^bit
+		}
+		return bits
+	}
+
+	var in0 uint8
+	in0 = put(in0, In0_NotUp, !false)
+	in0 = put(in0, In0_NotLeft, !false)
+	in0 = put(in0, In0_NotRight, !false)
+	in0 = put(in0, In0_NotDown, !false)
+	in0 = put(in0, In0_NotRackTest, !*flagRackTest)
+	in0 = put(in0, In0_RisingCoin1, !false)
+	in0 = put(in0, In0_RisingCoin2, !false)
+	in0 = put(in0, In0_NotCredit, !false)
+	in0_State.Store(uint32(in0))
+
+	var in1 uint8
+	in1 = put(in1, In1_NotUp, !false)
+	in1 = put(in1, In1_NotLeft, !false)
+	in1 = put(in1, In1_NotRight, !false)
+	in1 = put(in1, In1_NotDown, !false)
+	in1 = put(in1, In1_NotTest, !*flagTest)
+	in1 = put(in1, In1_NotStart1, !false)
+	in1 = put(in1, In1_NotStart2, !false)
+	in1 = put(in1, In1_NotCocktailMode, !*flagCocktail)
+	in1_State.Store(uint32(in1))
+
+	var dips uint8
+	dips = put(dips, DipCoins0, *flagCoins == 1 || *flagCoins == 2)
+	dips = put(dips, DipCoins1, *flagCoins == 2 || *flagCoins == 3)
+	dips = put(dips, DipLives0, *flagLives == 2 || *flagLives == 5)
+	dips = put(dips, DipLives1, *flagLives == 3 || *flagLives == 5)
+	dips = put(dips, DipBonus0, *flagBonus == 0 || *flagBonus == 15_000)
+	dips = put(dips, DipBonus1, *flagBonus == 0 || *flagBonus == 20_000)
+	dips = put(dips, LinkDifficulty, !*flagDifficult)
+	dips = put(dips, LinkGhostNames, !*flagAltGhosts)
+
+	dipSwitchState.Store(uint32(dips))
+
+	watchdogDisable = *flagNoWatchdog
 }
 
 func ioWrite() {
@@ -188,12 +234,15 @@ func ioWrite() {
 // controlled by the U6,U5,U4 muxes in the sync bus controller.
 
 func memRead(addr uint16) uint8 {
+	var v uint8
+
 	// bit15 is ignored, so entire memory map repeats at 0x8000
 	addr &^= 0x8000
 
 	switch addr & 0x4000 {
 	case 0x0000:
 		// 0000..3fff - ROM
+		// skip memory tracing for ROM
 		return programROM[addr]
 
 	case 0x4000:
@@ -204,20 +253,16 @@ func memRead(addr uint16) uint8 {
 			switch addr & 0x0c00 {
 			case 0x0000:
 				// 4000..43ff - Tile RAM
-				return tileRAM[addr&0x3ff]
+				v = uint8(video.TileRAM[addr&0x3ff])
 			case 0x0400:
 				// 4400..47ff - Palette RAM
-				return paletteRAM[addr&0x3ff]
+				v = uint8(video.PalRAM[addr&0x3ff])
 			case 0x0800:
 				// 4800..4bff - RAM absent
-				return 0
+				v = 0
 			case 0x0c00:
-				if addr&0x3f0 != 0x3f0 {
-					// 4c00..4fef - Program RAM
-					return programRAM[addr&0x3ff]
-				} else {
-					return spriteLookRAM[addr&0xf]
-				}
+				// 4c00..4fef - Program RAM
+				v = programRAM[addr&0x3ff]
 			}
 
 		case 0x1000:
@@ -225,31 +270,36 @@ func memRead(addr uint16) uint8 {
 			switch addr & 0x00c0 {
 			case 0x0000:
 				// 5000..503f - IN0
-				v := uint8(in0_State.Load())
-				return v
+				v = uint8(in0_State.Load())
 
 			case 0x0040:
 				// 5040..507f - IN1
-				v := uint8(in1_State.Load())
-				return v
+				v = uint8(in1_State.Load())
 
 			case 0x0080:
 				// 5080..50bf - DIPs
-				v := uint8(dipSwitchState.Load())
-				return v
+				v = uint8(dipSwitchState.Load())
 
 			case 0x00c0:
 				// 50c0..50ff - unused
-				return 0
+				v = 0
 			}
 		}
 	}
 
-	return 0
+	if traceMem[addr] {
+		fmt.Printf("%04x READ %02x\n", addr, v)
+	}
+
+	return v
 }
 
 func memWrite(addr uint16, data uint8) {
 	addr &^= 0x8000
+
+	if traceMem[addr] {
+		fmt.Printf("%04x WRITE %02x\n", addr, data)
+	}
 
 	switch addr & 0x4000 {
 	case 0x0000:
@@ -262,24 +312,24 @@ func memWrite(addr uint16, data uint8) {
 			switch addr & 0x0c00 {
 			case 0x0000:
 				// 4000.43ff - Tile RAM
-				videoMutex.Lock()
-				tileRAM[addr&0x3ff] = data
-				videoMutex.Unlock()
+				video.Mutex.Lock()
+				video.TileRAM[addr&0x3ff] = video.Tile(data)
+				video.Mutex.Unlock()
 			case 0x0400:
 				// 4400..47ff - Palette RAM
-				videoMutex.Lock()
-				paletteRAM[addr&0x3ff] = data
-				videoMutex.Unlock()
+				video.Mutex.Lock()
+				video.PalRAM[addr&0x3ff] = video.Palette(data)
+				video.Mutex.Unlock()
 			case 0x0800:
 				// 4800..4bff - no RAM
 			case 0x0c00:
-				if addr&0x3f0 != 0x3f0 {
-					// 4c00..4fef - Program RAM
-					programRAM[addr&0x3ff] = data
-				} else {
-					videoMutex.Lock()
-					spriteLookRAM[addr&0xf] = data
-					videoMutex.Unlock()
+				// 4c00..4fef - Program RAM
+				programRAM[addr&0x3ff] = data
+				if addr&0x3f0 == 0x3f0 {
+					// 4ff0..4fff - Sprite look RAM
+					video.Mutex.Lock()
+					video.SpriteLookRAM[addr&0xf] = data
+					video.Mutex.Unlock()
 				}
 			}
 
@@ -288,26 +338,22 @@ func memWrite(addr uint16, data uint8) {
 			switch addr & 0x00c0 {
 			case 0x0000:
 				// 5000..503f - options
-				optionsRegister[addr&0x07].Store((data & 1) == 1)
+				writeOption(int(addr&0x07), (data&1) == 1)
 
 			case 0x0040:
 				// 5040..507f - audio/video
 				switch addr & 0x30 {
 				case 0x00:
 					//5040..504f - audio accumulators and waveforms
-					audioMutex.Lock()
-					audioAccWaveRegister[addr&0x0f] = data & 0x0f
-					audioMutex.Unlock()
+					audio.AccWaveWrite(addr&0x0f, data&0x0f)
 				case 0x10:
 					//5050..505f - audio frequencies and volumes
-					audioMutex.Lock()
-					audioFreqVolRegister[addr&0x0f] = data & 0x0f
-					audioMutex.Unlock()
+					audio.FreqVolWrite(addr&0x0f, data&0x0f)
 				case 0x20:
 					//5060..506f - sprite positions
-					videoMutex.Lock()
-					spritePosRegister[addr&0xf] = data
-					videoMutex.Unlock()
+					video.Mutex.Lock()
+					video.SpritePosRegister[addr&0xf] = data
+					video.Mutex.Unlock()
 				case 0x30:
 					//5070..507f - unused
 				}
@@ -317,7 +363,7 @@ func memWrite(addr uint16, data uint8) {
 
 			case 0x00c0:
 				// 50c0..50ff - watchdog; any write resets it
-				watchDogRegister.Store(15)
+				watchdogRegister.Store(15 << 28)
 			}
 		}
 	}

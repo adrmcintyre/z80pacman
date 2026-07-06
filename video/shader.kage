@@ -1,0 +1,30 @@
+//kage:unit pixels
+package video
+
+// Uniform variables
+var Brightness float // brightness
+var HorizSmear float // bleed from adjacent phosphors
+var VertSmear float  // bleed from adjacent lines
+
+func Fragment(_ vec4, sourceCoords vec2, _ vec4) vec4 {
+	c00 := imageSrc0UnsafeAt(sourceCoords + vec2(-1, -1))
+	c01 := imageSrc0UnsafeAt(sourceCoords + vec2(0, -1))
+	c02 := imageSrc0UnsafeAt(sourceCoords + vec2(1, -1))
+
+	c10 := imageSrc0UnsafeAt(sourceCoords + vec2(-1, 0))
+	c11 := imageSrc0UnsafeAt(sourceCoords)
+	c12 := imageSrc0UnsafeAt(sourceCoords + vec2(1, 0))
+
+	c20 := imageSrc0UnsafeAt(sourceCoords + vec2(-1, 1))
+	c21 := imageSrc0UnsafeAt(sourceCoords + vec2(0, 1))
+	c22 := imageSrc0UnsafeAt(sourceCoords + vec2(1, 1))
+
+	c0 := c00*HorizSmear + c01*(1.0-2*HorizSmear) + c02*HorizSmear
+	c1 := c10*HorizSmear + c11*(1.0-2*HorizSmear) + c12*HorizSmear
+	c2 := c20*HorizSmear + c21*(1.0-2*HorizSmear) + c22*HorizSmear
+
+	color := c0*VertSmear + c1*(1.0-2*VertSmear) + c2*VertSmear
+	color *= Brightness
+
+	return vec4(color.rgb, color.a)
+}

@@ -1,15 +1,27 @@
 package main
 
+import "fmt"
+
 func illegal() {
-	panic("illegal instruction")
+	abort("illegal instruction")
 }
 
 func TODO() {
-	panic("TODO")
+	abort("TODO")
 }
 
 func NOT_NEEDED() {
-	panic("not needed")
+	abort("unneeded instruction")
+}
+
+func abort(msg string) {
+	fmt.Printf("\n")
+	dumpTraceLocs(16)
+	fmt.Printf("last instruction:")
+	for _, op := range trace {
+		fmt.Printf(" %02x", op)
+	}
+	panic(msg)
 }
 
 func adc(x uint8, y uint8, ci bool) uint8 {

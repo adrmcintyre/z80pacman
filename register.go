@@ -71,6 +71,7 @@ func (hlIndMuxer HlIndMuxer) addr() Addr {
 	if indexMode != IndexModeNone {
 		if !gotIndex {
 			index = imm8()
+			gotIndex = true
 		}
 		loc += uint16(index)
 	}

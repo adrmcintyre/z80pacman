@@ -21,3 +21,11 @@ func word(hi, lo uint8) uint16 {
 func unword(w uint16) (uint8, uint8) {
 	return uint8(w >> 8), uint8(w)
 }
+
+func hi(v uint16) uint8 {
+	return uint8(v >> 8)
+}
+
+func lo(v uint16) uint8 {
+	return uint8(v)
+}
