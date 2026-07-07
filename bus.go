@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/adrmcintyre/z80/audio"
-	"github.com/adrmcintyre/z80/cpu"
-	"github.com/adrmcintyre/z80/video"
+	"github.com/adrmcintyre/z80pacman/audio"
+	"github.com/adrmcintyre/z80pacman/video"
+	"github.com/adrmcintyre/z80pacman/z80"
 )
 
 var (
@@ -153,5 +153,5 @@ func busWrite(addr uint16, data uint8) {
 }
 
 func ioWrite() {
-	irqLowRegister.Store(cpu.DataBus.Load())
+	irqLowRegister.Store(z80.DataBus.Load())
 }

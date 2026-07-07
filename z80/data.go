@@ -1,4 +1,4 @@
-package cpu
+package z80
 
 // A ByteRef can read or write a byte of data.
 type ByteRef interface {

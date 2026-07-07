@@ -1,4 +1,4 @@
-package cpu
+package z80
 
 var HookBusRead = func(uint16) uint8 { panic("BusRead not hooked") }
 var HookBusWrite = func(uint16, uint8) { panic("BusWrite not hooked") }

@@ -1,4 +1,4 @@
-package cpu
+package z80
 
 // Addr is a reference to a memory location.
 type Addr uint16

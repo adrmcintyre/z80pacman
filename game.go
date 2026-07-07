@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/adrmcintyre/z80/video"
+	"github.com/adrmcintyre/z80pacman/video"
 	"github.com/hajimehoshi/ebiten/v2"
 )
 

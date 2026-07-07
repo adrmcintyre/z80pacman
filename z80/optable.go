@@ -1,4 +1,4 @@
-package cpu
+package z80
 
 import (
 	"fmt"

@@ -72,7 +72,7 @@ func SetPlayer2Lamp(value bool) {
 }
 
 func initEbiten(aspectRatio float64, fillRatio float64) {
-	ebiten.SetWindowTitle("z80-pacman")
+	ebiten.SetWindowTitle("z80 Pac Man")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	w, h := ebiten.Monitor().Size()
 	fw, fh := float64(w), float64(h)

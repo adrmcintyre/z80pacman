@@ -1,4 +1,4 @@
-module github.com/adrmcintyre/z80
+module github.com/adrmcintyre/z80pacman
 
 go 1.25.5
 

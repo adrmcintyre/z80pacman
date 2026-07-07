@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/adrmcintyre/z80/cpu"
-	"github.com/adrmcintyre/z80/video"
+	"github.com/adrmcintyre/z80pacman/video"
+	"github.com/adrmcintyre/z80pacman/z80"
 )
 
 func dumpTileRAM() {
@@ -52,7 +52,7 @@ func dumpHisto() {
 	fmt.Println("PC HISTOGRAM")
 	for loc, cnt := range debugHisto {
 		if cnt > 0 {
-			fmt.Printf("%10d %04x %s\n", cnt, loc, cpu.Disassemble(uint16(loc), programROM[loc:loc+4]))
+			fmt.Printf("%10d %04x %s\n", cnt, loc, z80.Disassemble(uint16(loc), programROM[loc:loc+4]))
 		}
 	}
 }
@@ -61,7 +61,7 @@ func dumpDisass() {
 	fmt.Println("DISASSEMBLY")
 	for loc, cnt := range debugHisto {
 		if cnt > 0 {
-			fmt.Printf("%04x %s\n", loc, cpu.Disassemble(uint16(loc), programROM[loc:loc+4]))
+			fmt.Printf("%04x %s\n", loc, z80.Disassemble(uint16(loc), programROM[loc:loc+4]))
 		}
 	}
 }
@@ -79,7 +79,7 @@ func dumpTrace(limit int) {
 	i := int(debugInstrCnt%uint64(n) - lim64)
 	for range lim64 {
 		loc := debugTrace[(i+n)%n]
-		fmt.Printf("%04x %s\n", loc, cpu.Disassemble(uint16(loc), programROM[loc:loc+4]))
+		fmt.Printf("%04x %s\n", loc, z80.Disassemble(uint16(loc), programROM[loc:loc+4]))
 		i++
 	}
 }

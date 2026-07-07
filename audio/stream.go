@@ -4,7 +4,7 @@ import (
 	"io"
 	"time"
 
-	audiofilter "github.com/adrmcintyre/z80/audio/audiofilter"
+	audiofilter "github.com/adrmcintyre/z80pacman/audio/audiofilter"
 	ebiten_audio "github.com/hajimehoshi/ebiten/v2/audio"
 )
 

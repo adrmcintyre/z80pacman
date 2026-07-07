@@ -3,8 +3,8 @@ package main
 import (
 	"sync/atomic"
 
-	"github.com/adrmcintyre/z80/audio"
-	"github.com/adrmcintyre/z80/video"
+	"github.com/adrmcintyre/z80pacman/audio"
+	"github.com/adrmcintyre/z80pacman/video"
 )
 
 // An 8-way latch the software can write to to control the hardware.

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/adrmcintyre/z80/audio"
+	"github.com/adrmcintyre/z80pacman/audio"
 )
 
 var (

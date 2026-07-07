@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/adrmcintyre/z80/cpu"
+	"github.com/adrmcintyre/z80pacman/z80"
 )
 
 var (
@@ -44,12 +44,12 @@ func debugParseFlags() {
 }
 
 func debugTraceCPU(pc uint16) {
-	if !cpu.Halted {
+	if !z80.Halted {
 		debugHisto[pc]++
 		debugTrace[debugInstrCnt%uint64(len(debugTrace))] = pc
 		debugInstrCnt++
 		if *flagTrace {
-			debugTraceInstruction(pc, cpu.DebugTrace)
+			debugTraceInstruction(pc, z80.DebugTrace)
 		}
 	}
 }
@@ -59,10 +59,10 @@ func debugTraceInstruction(pc uint16, trace []byte) {
 	for _, byt := range trace {
 		hexBuf += fmt.Sprintf(" %02x", byt)
 	}
-	txtBuf := cpu.Disassemble(pc, trace)
+	txtBuf := z80.Disassemble(pc, trace)
 	fmt.Printf("%04x |%-12s | %-16s | ", pc, hexBuf, txtBuf)
 
-	s := cpu.GetState()
+	s := z80.GetState()
 
 	fmt.Printf("a=%02x ", s.A)
 	fmt.Printf("bc=%02x:%02x ", s.B, s.C)

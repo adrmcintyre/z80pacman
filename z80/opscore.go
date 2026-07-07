@@ -1,4 +1,4 @@
-package cpu
+package z80
 
 // This file defines the core (non-prefixed) z80 opcodes.
 
@@ -180,15 +180,14 @@ func newCoreTable() *opTable {
 			a.Wr(value)
 			flagS.put((value & (1 << 7)) != 0)
 			flagZ.put(value == 0)
-			setParity(value)
+			flagPV.put(parity(value))
 		},
 		"daa")
 
 	t.def(
 		0b00_101_111, func() {
 			a.Wr(^a.Rd())
-			flagH.set()
-			flagN.set()
+			(flagH | flagN).set()
 		},
 		"cpl")
 
@@ -286,7 +285,6 @@ func newCoreTable() *opTable {
 			}
 		}, "djnz %e")
 
-	/// rst p
 	for i := range 8 {
 		loc := uint16(i * 8)
 		t.def(
@@ -296,7 +294,6 @@ func newCoreTable() *opTable {
 			"rst %p", i)
 	}
 
-	// out (n),A
 	t.def(
 		0b11_010_011, func() {
 			// The operand n is placed on the bottom half (A0 through A7) of the

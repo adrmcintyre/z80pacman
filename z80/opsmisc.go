@@ -1,4 +1,4 @@
-package cpu
+package z80
 
 // This file defines the extended ("ED"-prefixed) z80 opcodes.
 
@@ -161,9 +161,8 @@ func ldi() bool {
 	de.Wr16(dst)
 	bc.Wr16(count)
 
-	flagH.reset()
+	(flagH | flagN).reset()
 	flagPV.put(count != 0)
-	flagN.reset()
 
 	return count != 0
 }

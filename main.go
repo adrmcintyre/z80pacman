@@ -8,9 +8,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/adrmcintyre/z80/audio"
-	"github.com/adrmcintyre/z80/cpu"
-	"github.com/adrmcintyre/z80/video"
+	"github.com/adrmcintyre/z80pacman/audio"
+	"github.com/adrmcintyre/z80pacman/video"
+	"github.com/adrmcintyre/z80pacman/z80"
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
@@ -75,17 +75,17 @@ func loadProgram(path string) {
 }
 
 func wireCPU() {
-	cpu.HookBusRead = busRead
-	cpu.HookBusWrite = busWrite
-	cpu.HookIoWrite = ioWrite
+	z80.HookBusRead = busRead
+	z80.HookBusWrite = busWrite
+	z80.HookIoWrite = ioWrite
 
 	// abort is a helper that aborts the program with the given message,
 	// and displays the disassembly of the last few instructions executed.
-	cpu.HookAbort = func(msg string) {
+	z80.HookAbort = func(msg string) {
 		fmt.Printf("\n")
 		dumpTraceLocs(16)
 		fmt.Printf("last instruction:")
-		for _, op := range cpu.DebugTrace {
+		for _, op := range z80.DebugTrace {
 			fmt.Printf(" %02x", op)
 		}
 		panic(msg)
@@ -104,7 +104,7 @@ func runCPU() {
 
 	go func() {
 		for {
-			pc := cpu.Step()
+			pc := z80.Step()
 
 			if *flagDelayHack {
 				if pc == 0x32ed {
@@ -132,13 +132,13 @@ func runCPU() {
 }
 
 func resetMachine() {
-	cpu.Reset()
+	z80.Reset()
 	resetDevices()
 }
 
 func resetDevices() {
-	cpu.ResetAssertPin.Store(false)
-	cpu.IrqAssertPin.Store(false)
+	z80.ResetAssertPin.Store(false)
+	z80.IrqAssertPin.Store(false)
 
 	irqLowRegister.Store(0)
 	watchdogReset()

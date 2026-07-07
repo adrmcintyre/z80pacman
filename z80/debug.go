@@ -1,5 +1,6 @@
-package cpu
+package z80
 
+// State represents the state of the CPU for debuggers.
 type State struct {
 	B, C, D, E, H, L, A     uint8  // 8 bit regs
 	IX, IY, PC, SP          uint16 // 16 bit regs
@@ -7,6 +8,7 @@ type State struct {
 	FS, FZ, FH, FPV, FN, FC bool   // flags
 }
 
+// GetState returns the state of the CPU.
 func GetState() State {
 	return State{
 		B:   b.Rd(),
@@ -33,7 +35,11 @@ func GetState() State {
 	}
 }
 
-func Disassemble(pc uint16, trace []uint8) string {
+// Disassemble returns a text representation of the instruction
+// located at loc, and consisting of the opcodes in trace - note that
+// only as many bytes as necessary to decode the instruction will be
+// read from trace (i.e. a maximum of 4).
+func Disassemble(loc uint16, trace []uint8) string {
 	switch trace[0] {
 	case 0xdd, 0xfd:
 		hlAlias := "hl"
@@ -43,15 +49,15 @@ func Disassemble(pc uint16, trace []uint8) string {
 			hlAlias = "iy"
 		}
 		if trace[1] == 0xcb {
-			return bitTable.text(pc, trace[3], trace[2:], hlAlias)
+			return bitTable.text(loc, trace[3], trace[2:], hlAlias)
 		}
-		return coreTable.text(pc, trace[1], trace[2:], hlAlias)
+		return coreTable.text(loc, trace[1], trace[2:], hlAlias)
 
 	case 0xed:
-		return miscTable.text(pc, trace[1], trace[2:], "hl")
+		return miscTable.text(loc, trace[1], trace[2:], "hl")
 	case 0xcb:
-		return bitTable.text(pc, trace[1], trace[2:], "hl")
+		return bitTable.text(loc, trace[1], trace[2:], "hl")
 	default:
-		return coreTable.text(pc, trace[0], trace[1:], "hl")
+		return coreTable.text(loc, trace[0], trace[1:], "hl")
 	}
 }

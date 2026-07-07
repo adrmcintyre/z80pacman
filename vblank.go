@@ -3,8 +3,8 @@ package main
 import (
 	"time"
 
-	"github.com/adrmcintyre/z80/audio"
-	"github.com/adrmcintyre/z80/cpu"
+	"github.com/adrmcintyre/z80pacman/audio"
+	"github.com/adrmcintyre/z80pacman/z80"
 )
 
 const (
@@ -58,8 +58,8 @@ func vblankStart() {
 		for range vblankTicker.C {
 			audio.Tick()
 			if irqEnableRegister.Load() {
-				cpu.DataBus.Store(irqLowRegister.Load())
-				cpu.IrqAssertPin.Store(true)
+				z80.DataBus.Store(irqLowRegister.Load())
+				z80.IrqAssertPin.Store(true)
 			}
 			watchdogTick()
 		}
