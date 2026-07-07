@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/adrmcintyre/z80/audio"
 	"github.com/adrmcintyre/z80/cpu"
@@ -104,6 +105,12 @@ func runCPU() {
 	go func() {
 		for {
 			pc := cpu.Step()
+
+			if *flagDelayHack {
+				if pc == 0x32ed {
+					time.Sleep(100 * time.Millisecond)
+				}
+			}
 
 			if breakpointed(pc) {
 				break
