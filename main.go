@@ -34,19 +34,7 @@ var (
 
 func main() {
 	parseFlags()
-	machineInit()
-	machinePowerOn()
-	machineRun()
-	ebiten.RunGame(&Game{})
-}
 
-func parseFlags() {
-	flag.Parse()
-	ioParseFlags()
-	debugParseFlags()
-}
-
-func machineInit() {
 	video.Init()
 
 	err := audio.Init()
@@ -57,6 +45,15 @@ func machineInit() {
 
 	programInit()
 	wireCPU()
+	powerOn()
+	runCPU()
+	ebiten.RunGame(&Game{})
+}
+
+func parseFlags() {
+	flag.Parse()
+	ioParseFlags()
+	debugParseFlags()
 }
 
 func programInit() {
@@ -94,13 +91,20 @@ func wireCPU() {
 	}
 }
 
-func machineRun() {
+func powerOn() {
+	resetMachine()
+	ioInit()
+	vblankStart()
+}
+
+func runCPU() {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
 		for {
 			pc := cpu.Step()
+
 			if breakpointed(pc) {
 				break
 			}
@@ -111,8 +115,8 @@ func machineRun() {
 				switch a {
 				case syscall.SIGINT:
 					fmt.Println("\nCtrl+C")
-					os.Exit(1)
 				}
+				os.Exit(1)
 			default:
 			}
 		}
@@ -120,13 +124,7 @@ func machineRun() {
 	}()
 }
 
-func machinePowerOn() {
-	machineReset()
-	ioInit()
-	vblankStart()
-}
-
-func machineReset() {
+func resetMachine() {
 	cpu.Reset()
 	resetDevices()
 }
