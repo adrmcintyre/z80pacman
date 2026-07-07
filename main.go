@@ -38,7 +38,7 @@ func main() {
 
 	video.Init()
 
-	err := audio.Init(audio.LatencyLow)
+	err := audio.Init()
 	defer audio.Shutdown()
 	if err != nil {
 		panic(err)

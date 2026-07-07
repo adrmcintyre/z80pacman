@@ -129,6 +129,7 @@ func startVblankTicker() {
 
 	go func() {
 		for range vblankTicker.C {
+			audio.Tick()
 			if irqEnableRegister.Load() {
 				dataBus.Store(irqLowRegister.Load())
 				irqAssertPin.Store(true)
