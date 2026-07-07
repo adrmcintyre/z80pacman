@@ -1,4 +1,4 @@
-package main
+package cpu
 
 // This file defines the extended ("ED"-prefixed) z80 opcodes.
 

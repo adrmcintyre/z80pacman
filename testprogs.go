@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/adrmcintyre/z80/audio"
 )
 
 var (
@@ -23,6 +25,14 @@ func asm(op uint8, args ...uint8) {
 // suitable for assembling relative jumps.
 func rel(dst uint16) uint8 {
 	return uint8(dst - (org + 2))
+}
+
+func lo(v uint16) uint8 {
+	return uint8(v)
+}
+
+func hi(v uint16) uint8 {
+	return uint8(v >> 8)
 }
 
 // loadTestProgram loads the specified test program.
@@ -49,14 +59,16 @@ func loadTestProgram(prog string) {
 
 	// if we reach here, halt and dump
 	setBreakpoint(org, Breakpoint{
-		resume:      false,
-		dumpProgram: true,
+		Resume:      false,
+		DumpProgram: true,
 	})
 	asm(0x76) // hlt
 }
 
 // test1 plays a chord (middle C, E, G) on the three audio channels.
 func test1() {
+	audio.SetSoundEnable(true)
+
 	freq0 := (440 * 4096 / 375)
 	freq1 := (523 * 4096 / 375)
 	freq2 := (660 * 4096 / 375)
@@ -89,6 +101,7 @@ func test1() {
 
 // test2 plays a repeated ascending tone on the second audio channel.
 func test2() {
+	audio.SetSoundEnable(true)
 	// labels
 	var (
 		next_freq uint16
@@ -167,8 +180,11 @@ func test2() {
 		asm(0x0f)                   // rrca
 		asm(0x0f)                   // rrca
 		asm(0xdd, 0x77, 0x13)       // ld (ix+#13), a
-		asm(0xdd, 0x36, 0x15, 0x0f) // max volume
+		asm(0xdd, 0x36, 0x15, 0x0f) // ld (ix+#15), #15 ; max volume
 
+		setBreakpoint(org, Breakpoint{
+			DumpHisto: true,
+		})
 		asm(0xfb) // ei
 		asm(0xc9) // ret
 	}

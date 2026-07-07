@@ -1,9 +1,8 @@
-package main
+package cpu
 
 import (
 	"fmt"
 	"sync/atomic"
-	"time"
 )
 
 // An IrqMode represents an interrupt handling mode.
@@ -47,7 +46,7 @@ func (Imm) Wr16(uint16) {
 func imm8() uint8 {
 	loc := pc.Rd16()
 	n := ref(loc).Rd()
-	trace = append(trace, n)
+	DebugTrace = append(DebugTrace, n)
 	pc.Wr16(loc + 1)
 	return n
 }
@@ -105,8 +104,6 @@ var (
 	hl2 = new(Reg16)
 	af2 = new(Reg16)
 
-	halted = false // is processor currently halted, awaiting interrupt?
-
 	// irq enable flip-flops
 	irqEnable1 = false // iff1
 	irqEnable2 = false // iff2
@@ -118,19 +115,18 @@ var (
 	gotIndex  bool      // have we retrieved an index offset byte yet?
 	index     uint8     // the index offset byte
 
-	dataBus        atomic.Uint32 // only lower 8 bits used
-	addressBus     atomic.Uint32 // only lower 16 bits used
-	irqAssertPin   atomic.Bool   // has an irq been asserted externally?
-	resetAssertPin atomic.Bool   // has reset been asserted externally?
+	Halted         bool          // is processor currently halted, awaiting interrupt?
+	DataBus        atomic.Uint32 // only lower 8 bits used
+	AddressBus     atomic.Uint32 // only lower 16 bits used
+	IrqAssertPin   atomic.Bool   // has an irq been asserted externally?
+	ResetAssertPin atomic.Bool   // has reset been asserted externally?
 
 	// for debugging
-	trace        = make([]uint8, 4) // last 4 bytes retrieved from instruction stream
-	pcHisto      [0x4000]int64      // histogram indexed by pc for each instruction executed
-	pcTrace      [65536]uint16      // last 64K values of pc (circular buffer)
-	pcTraceIndex uint16             // next pcTrace index to write to
+	DebugPC    uint16
+	DebugTrace = make([]uint8, 4) // last 4 bytes retrieved from instruction stream
 )
 
-func resetCPU() {
+func Reset() {
 	fmt.Println("RESET!")
 
 	// reset all registers
@@ -139,50 +135,30 @@ func resetCPU() {
 	}
 
 	// reset internal state
-	halted = false
+	Halted = false
 	irqEnable1 = false
 	irqEnable2 = false
 	irqMode = IrqMode0
 	irqPage = 0
 
 	// reset outgoing signals
-	dataBus.Store(0)
-	addressBus.Store(0)
+	DataBus.Store(0)
+	AddressBus.Store(0)
 }
 
-func stepCPU() bool {
+func Step() uint16 {
 	checkReset()
 	checkInterrupt()
 
-	if halted {
-		return true
+	DebugPC = pc.Rd16()
+	if !Halted {
+		nextInstruction()
 	}
-
-	prePC := pc.Rd16()
-	pcHisto[prePC]++
-	pcTrace[pcTraceIndex] = prePC
-	pcTraceIndex++
-
-	if stop := breakpointed(prePC); stop {
-		return false
-	}
-
-	if *flagDelayHack {
-		if *pc == 0x32ed {
-			time.Sleep(100 * time.Millisecond)
-		}
-	}
-
-	nextInstruction()
-
-	if *flagTrace {
-		traceInstruction(prePC)
-	}
-	return true
+	return DebugPC
 }
 
 func nextInstruction() {
-	trace = trace[:0]
+	DebugTrace = DebugTrace[:0]
 	indexMode = IndexModeNone
 	gotIndex = false
 	hlMux = hl
@@ -219,24 +195,25 @@ func nextInstruction() {
 }
 
 func checkReset() {
-	if resetAssertPin.Load() {
-		resetMachine()
+	if ResetAssertPin.Load() {
+		//TODO
+		//resetMachine()
 	}
 }
 
 func checkInterrupt() {
-	if irqEnable1 && irqAssertPin.Load() {
+	if irqEnable1 && IrqAssertPin.Load() {
 		irqEnable1 = false
 		irqEnable2 = false
-		halted = false
-		irqAssertPin.Store(false)
+		Halted = false
+		IrqAssertPin.Store(false)
 		switch irqMode {
 		case IrqMode0:
 			panic("irq mode 0 not implemented")
 		case IrqMode1:
 			call(0x38)
 		case IrqMode2:
-			low := uint8(dataBus.Load()) & 0xfe
+			low := uint8(DataBus.Load()) & 0xfe
 			ind := word(irqPage, low)
 			loc := ref(ind).Rd16()
 			call(loc)

@@ -1,36 +1,7 @@
-package main
+package cpu
 
 // This file implements helpers for various z80 opcodes
 // and flag manipulation.
-
-import "fmt"
-
-// illegal panics with an "illegal" message when executed.
-func illegal() {
-	abort("illegal instruction")
-}
-
-// TODO aborts with a "TODO" message when executed.
-func TODO() {
-	abort("TODO")
-}
-
-// unimplemented aborts with an "unimplemented" message when executed.
-func unimplemented() {
-	abort("unimplemented instruction")
-}
-
-// abort is a helper that aborts the program with the given message,
-// and displays the disassembly of the last few instructions executed.
-func abort(msg string) {
-	fmt.Printf("\n")
-	dumpTraceLocs(16)
-	fmt.Printf("last instruction:")
-	for _, op := range trace {
-		fmt.Printf(" %02x", op)
-	}
-	panic(msg)
-}
 
 // adc computes x+y+ci and returns the result.
 // Affects C,S,Z,PV,N,H flags.

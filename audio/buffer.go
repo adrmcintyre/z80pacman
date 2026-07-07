@@ -1,6 +1,8 @@
 package audio
 
-import "sync"
+import (
+	"sync"
+)
 
 const (
 	// TODO - we're rederiving the VBLANK period here

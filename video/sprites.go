@@ -54,9 +54,6 @@ func (look Sprite) Draw(img *ebiten.Image, x, y int, flipX, flipY bool, pal Pale
 	op.GeoM.Scale(scaleX, scaleY)
 	op.GeoM.Translate(float64(x), float64(y))
 
-	// TODO - we don't seem to be processing sprite transparency correctly
-	// (we seem to just render black) - just skip sprites with an all transparent
-	// palette altogether for now.
 	if pal != 0 {
 		colorm.DrawImage(img, spriteImages[look], ColorM[pal], &op)
 	}

@@ -1,4 +1,4 @@
-package main
+package cpu
 
 // This file defines the core (non-prefixed) z80 opcodes.
 
@@ -32,7 +32,7 @@ func newCoreTable() *opTable {
 		t.def(0b00_000_110|(rrr<<3), ld_r_n, "ld %r,%n", rrr)
 	}
 	// overwrite 0x76 with hlt (would be ld (hl),(hl))
-	t.def(0b01_110_110, func() { halted = true }, "hlt")
+	t.def(0b01_110_110, func() { Halted = true }, "hlt")
 
 	t.def(0b00_000_010, func() { ref(bc.Rd16()).Wr(a.Rd()) }, "ld (bc),a")
 	t.def(0b00_001_010, func() { a.Wr(ref(bc.Rd16()).Rd()) }, "ld a,(bc)")
@@ -311,9 +311,9 @@ func newCoreTable() *opTable {
 			// mapped to I/O port address 01h.
 			n := imm8()
 			v := a.Rd()
-			addressBus.Store(uint32(word(v, n)))
-			dataBus.Store(uint32(v))
-			ioWrite()
+			AddressBus.Store(uint32(word(v, n)))
+			DataBus.Store(uint32(v))
+			HookIoWrite()
 
 			// Pacman only uses this in two cases to set up an interrupt vector.
 			//

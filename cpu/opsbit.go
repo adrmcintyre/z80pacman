@@ -1,4 +1,4 @@
-package main
+package cpu
 
 // This file defines the bit-manipulation ("CB"-prefixed) z80 opcodes.
 

@@ -1,4 +1,4 @@
-package main
+package cpu
 
 // A Reg is the value of an 8-bit register.
 type Reg uint8

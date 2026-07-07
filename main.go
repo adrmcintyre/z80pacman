@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/adrmcintyre/z80/audio"
+	"github.com/adrmcintyre/z80/cpu"
 	"github.com/adrmcintyre/z80/video"
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -32,10 +33,20 @@ var (
 )
 
 func main() {
+	parseFlags()
+	machineInit()
+	machinePowerOn()
+	machineRun()
+	ebiten.RunGame(&Game{})
+}
+
+func parseFlags() {
 	flag.Parse()
 	ioParseFlags()
 	debugParseFlags()
+}
 
+func machineInit() {
 	video.Init()
 
 	err := audio.Init()
@@ -45,8 +56,7 @@ func main() {
 	}
 
 	programInit()
-	runMachine()
-	ebiten.RunGame(&Game{})
+	wireCPU()
 }
 
 func programInit() {
@@ -66,14 +76,36 @@ func loadProgram(path string) {
 	copy(programROM[:], data)
 }
 
-func runMachine() {
-	powerOn()
+func wireCPU() {
+	cpu.HookBusRead = busRead
+	cpu.HookBusWrite = busWrite
+	cpu.HookIoWrite = ioWrite
 
+	// abort is a helper that aborts the program with the given message,
+	// and displays the disassembly of the last few instructions executed.
+	cpu.HookAbort = func(msg string) {
+		fmt.Printf("\n")
+		dumpTraceLocs(16)
+		fmt.Printf("last instruction:")
+		for _, op := range cpu.DebugTrace {
+			fmt.Printf(" %02x", op)
+		}
+		panic(msg)
+	}
+}
+
+func machineRun() {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
-		for stepCPU() {
+		for {
+			pc := cpu.Step()
+			if breakpointed(pc) {
+				break
+			}
+			debugTraceCPU(pc)
+
 			select {
 			case a := <-sig:
 				switch a {
@@ -88,21 +120,21 @@ func runMachine() {
 	}()
 }
 
-func powerOn() {
-	resetMachine()
+func machinePowerOn() {
+	machineReset()
 	ioInit()
-	startVblankTicker()
+	vblankStart()
 }
 
-func resetMachine() {
-	resetCPU()
+func machineReset() {
+	cpu.Reset()
 	resetDevices()
 }
 
 func resetDevices() {
-	resetAssertPin.Store(false)
-	irqAssertPin.Store(false)
+	cpu.ResetAssertPin.Store(false)
+	cpu.IrqAssertPin.Store(false)
 
 	irqLowRegister.Store(0)
-	watchdogRegister.Store(15 << 28)
+	watchdogReset()
 }
