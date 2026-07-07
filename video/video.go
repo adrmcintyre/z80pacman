@@ -44,6 +44,8 @@ var (
 	flipScreen  atomic.Bool
 	player1Lamp atomic.Bool
 	player2Lamp atomic.Bool
+
+	frameBuf *ebiten.Image
 )
 
 var (
@@ -80,6 +82,7 @@ func initEbiten(aspectRatio float64, fillRatio float64) {
 		h = int(fw / aspectRatio)
 	}
 	ebiten.SetWindowSize(int(float64(w)*fillRatio), int(float64(h)*fillRatio))
+	frameBuf = ebiten.NewImage(displayWidth, displayHeight)
 }
 
 // Draw paints the supplied bitmap with tiles, with all sprites
@@ -87,8 +90,15 @@ func initEbiten(aspectRatio float64, fillRatio float64) {
 func Draw(screen *ebiten.Image) {
 	Mutex.Lock()
 	defer Mutex.Unlock()
-	drawTiles(screen)
-	drawSprites(screen)
+
+	frameBuf.Clear()
+	drawTiles(frameBuf)
+	drawSprites(frameBuf)
+
+	op := ebiten.DrawImageOptions{}
+	op.GeoM.Scale(1, 1)
+	op.GeoM.Translate(float64(hOffset), float64(vOffset))
+	screen.DrawImage(frameBuf, &op)
 
 	// TODO display lamps in a less obnoxious way
 	if player1Lamp.Load() {
@@ -149,19 +159,20 @@ func tileIndex(x int, y int) int {
 
 // drawTiles paints the supplied bitmap with the contents
 // of tile ram mixed with the colours from palette ram.
-func drawTiles(screen *ebiten.Image) {
+func drawTiles(img *ebiten.Image) {
+	flip := flipScreen.Load()
 	for ty := range vTiles {
 		for tx := range hTiles {
 			posX, posY := tx*tileWidth, ty*tileHeight
 			index := tileIndex(tx, ty)
 			t := TileRAM[index]
 			pal := PalRAM[index] & 0x3f
-			t.Draw(screen, hOffset+posX, vOffset+posY, pal)
+			t.Draw(img, posX, posY, pal, flip)
 		}
 	}
 }
 
-func drawSprites(screen *ebiten.Image) {
+func drawSprites(img *ebiten.Image) {
 	// note, sprites 0 and 7 are never used by pacman
 	for i := 0; i <= 7; i++ {
 		x := int(SpritePosRegister[2*i])
@@ -173,6 +184,6 @@ func drawSprites(screen *ebiten.Image) {
 		look := Sprite(data >> 2)
 		flipX := data&0b0000_0010 != 0
 		flipY := data&0b0000_0001 != 0
-		look.Draw(screen, hOffset+x, vOffset+y, flipX, flipY, pal)
+		look.Draw(img, x, y, flipX, flipY, pal)
 	}
 }

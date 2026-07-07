@@ -40,11 +40,11 @@ func initTiles() {
 }
 
 // Draw paints the tile onto img.
-func (t Tile) Draw(img *ebiten.Image, x, y int, pal Palette) {
+func (t Tile) Draw(img *ebiten.Image, x, y int, pal Palette, flip bool) {
 	op := colorm.DrawImageOptions{}
-	if flipScreen.Load() {
+	if flip {
 		op.GeoM.Scale(-1, -1)
-		op.GeoM.Translate(float64(8+displayWidth+1-x), float64(8+displayHeight+1-y))
+		op.GeoM.Translate(float64(displayWidth-x), float64(displayHeight-y))
 	} else {
 		op.GeoM.Scale(1, 1)
 		op.GeoM.Translate(float64(x), float64(y))
