@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
@@ -29,13 +28,11 @@ func debugParseFlags() {
 		}
 		s, err := strconv.ParseInt(start, 16, 64)
 		if err != nil || s < 0 || s > 0xffff {
-			fmt.Printf("bad memory range specified: %s", ftm)
-			os.Exit(1)
+			die("bad memory range specified: %s", ftm)
 		}
 		e, err := strconv.ParseInt(end, 16, 64)
 		if err != nil || e < s || e > 0xffff {
-			fmt.Printf("bad memory range specified: %s\n", ftm)
-			os.Exit(1)
+			die("bad memory range specified: %s", ftm)
 		}
 		for i := s; i <= e; i++ {
 			debugMem[i] = true

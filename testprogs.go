@@ -1,9 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/adrmcintyre/z80pacman/audio"
 )
 
@@ -53,8 +50,7 @@ func loadTestProgram(prog string) {
 	case "2":
 		test2()
 	default:
-		fmt.Printf("unknown program\n")
-		os.Exit(1)
+		die("unknown program: %s", prog)
 	}
 
 	// if we reach here, halt and dump

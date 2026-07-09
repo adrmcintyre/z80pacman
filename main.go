@@ -68,28 +68,16 @@ func programInit() {
 func loadProgram(path string) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Could not open %s: %v\n", path, err)
-		os.Exit(1)
+		die("Could not open %s: %v", path, err)
 	}
 	copy(programROM[:], data)
 }
 
 func wireCPU() {
-	z80.HookBusRead = busRead
-	z80.HookBusWrite = busWrite
-	z80.HookIoWrite = ioWrite
-
-	// abort is a helper that aborts the program with the given message,
-	// and displays the disassembly of the last few instructions executed.
-	z80.HookAbort = func(msg string) {
-		fmt.Printf("\n")
-		dumpTraceLocs(16)
-		fmt.Printf("last instruction:")
-		for _, op := range z80.DebugTrace {
-			fmt.Printf(" %02x", op)
-		}
-		panic(msg)
-	}
+	z80.OnBusRead = busRead
+	z80.OnBusWrite = busWrite
+	z80.OnIoWrite = ioWrite
+	z80.OnAbort = cpuAbort
 }
 
 func powerOn() {
@@ -120,9 +108,10 @@ func runCPU() {
 			case s := <-sigCh:
 				switch s {
 				case syscall.SIGINT:
-					fmt.Println("\nCtrl+C")
+					die("\nCtrl+C")
+				default:
+					die("\nQUIT")
 				}
-				os.Exit(1)
 			default:
 			}
 
@@ -139,7 +128,8 @@ func runCPU() {
 			}
 			debugTraceCPU(pc)
 		}
-		os.Exit(1)
+		// TODO - kill ebiten and exit cleanly
+		die("terminated by breakpoint")
 	}()
 }
 
@@ -151,4 +141,22 @@ func resetMachine() {
 func resetDevices() {
 	irqLowRegister.Store(0)
 	watchdogReset()
+}
+
+// cpuAbort aborts the program with the given message, and displays
+//
+//	the disassembly of the last few instructions executed.
+func cpuAbort(msg string) {
+	fmt.Println()
+	dumpTraceLocs(16)
+	fmt.Printf("last instruction:")
+	for _, op := range z80.DebugTrace {
+		fmt.Printf(" %02x", op)
+	}
+	die("abort: %s", msg)
+}
+
+func die(msg string, args ...any) {
+	fmt.Fprintf(os.Stderr, msg+"\n", args...)
+	os.Exit(1)
 }

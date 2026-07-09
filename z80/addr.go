@@ -5,12 +5,12 @@ type Addr uint16
 
 // Rd implements the ByteRef interface.
 func (addr Addr) Rd() uint8 {
-	return HookBusRead(uint16(addr))
+	return OnBusRead(uint16(addr))
 }
 
 // Wr implements the ByteRef interface.
 func (addr Addr) Wr(v uint8) {
-	HookBusWrite(uint16(addr), v)
+	OnBusWrite(uint16(addr), v)
 }
 
 // Rd16 implements the WordRef interface.

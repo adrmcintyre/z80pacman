@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/adrmcintyre/z80pacman/video"
 	"github.com/adrmcintyre/z80pacman/z80"
@@ -16,7 +15,7 @@ func dumpTileRAM() {
 		for j := range wd {
 			fmt.Printf(" %02x", video.TileRAM[i*wd+j])
 		}
-		fmt.Printf("\n")
+		fmt.Println()
 	}
 }
 
@@ -28,7 +27,7 @@ func dumpPaletteRAM() {
 		for j := range wd {
 			fmt.Printf(" %02x", video.PalRAM[i*wd+j])
 		}
-		fmt.Printf("\n")
+		fmt.Println()
 	}
 }
 
@@ -38,14 +37,13 @@ func dumpProgramRAM() {
 	for i := range len(programRAM) / wd {
 		fmt.Printf("%04x", 0x4c00+i*wd)
 		for j := range wd / 8 {
-			fmt.Printf(" |")
+			fmt.Print(" |")
 			for k := range 8 {
 				fmt.Printf(" %02x", programRAM[i*wd+j*8+k])
 			}
 		}
-		fmt.Printf("\n")
+		fmt.Println()
 	}
-	os.Exit(0)
 }
 
 func dumpHisto() {

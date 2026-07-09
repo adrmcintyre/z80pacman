@@ -1,21 +1,21 @@
 package z80
 
-var HookBusRead = func(uint16) uint8 { panic("BusRead not hooked") }
-var HookBusWrite = func(uint16, uint8) { panic("BusWrite not hooked") }
-var HookIoWrite = func(uint16, uint8) { panic("IoWrite not hooked") }
-var HookAbort = func(msg string) { panic(msg) }
+var OnBusRead = func(uint16) uint8 { panic("BusRead not hooked") }
+var OnBusWrite = func(uint16, uint8) { panic("BusWrite not hooked") }
+var OnIoWrite = func(uint16, uint8) { panic("IoWrite not hooked") }
+var OnAbort = func(msg string) { panic(msg) }
 
 // illegal panics with an "illegal" message when executed.
 func illegal() {
-	HookAbort("illegal instruction")
+	OnAbort("illegal instruction")
 }
 
 // TODO aborts with a "TODO" message when executed.
 func TODO() {
-	HookAbort("TODO")
+	OnAbort("TODO")
 }
 
 // unimplemented aborts with an "unimplemented" message when executed.
 func unimplemented() {
-	HookAbort("unimplemented instruction")
+	OnAbort("unimplemented instruction")
 }

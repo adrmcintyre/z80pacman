@@ -310,7 +310,7 @@ func newCoreTable() *opTable {
 			acc := a.Rd()
 			//AddressBus.Store(uint32(word(v, n)))
 			//DataBus.Store(uint32(v))
-			HookIoWrite(word(acc, n), acc)
+			OnIoWrite(word(acc, n), acc)
 
 			// Pacman only uses this in two cases to set up an interrupt vector.
 			//

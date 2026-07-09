@@ -1,28 +1,20 @@
 package main
 
-import (
-	"fmt"
-	"os"
-)
-
 func ioParseFlags() {
 	switch *flagCoins {
 	case 0, 1, 2, 3:
 	default:
-		fmt.Printf("illegal -dip-coins")
-		os.Exit(1)
+		die("illegal -dip-coins")
 	}
 	switch *flagLives {
 	case 1, 2, 3, 5:
 	default:
-		fmt.Printf("illegal -dip-lives")
-		os.Exit(1)
+		die("illegal -dip-lives")
 	}
 	switch *flagBonus {
 	case 0, 10_000, 15_000, 20_000:
 	default:
-		fmt.Printf("illegal -dip-bonus")
-		os.Exit(1)
+		die("illegal -dip-bonus")
 	}
 }
 
