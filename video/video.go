@@ -179,6 +179,14 @@ func drawSprites(img *ebiten.Image) {
 		y := int(SpritePosRegister[2*i+1])
 		x = displayWidth - x + 16
 		y = displayHeight - y - 16
+
+		// quirk of the display hardware
+		if i <= 2 {
+			x -= 2
+		} else {
+			x -= 1
+		}
+
 		data := SpriteLookRAM[2*i]
 		pal := Palette(SpriteLookRAM[2*i+1] & 0b0011_1111)
 		look := Sprite(data >> 2)
