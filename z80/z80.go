@@ -12,7 +12,7 @@ const (
 	IrqMode0 IrqMode = iota
 	// CPU executes restart at 0038h
 	IrqMode1
-	// CPU calls 2-byte vector at memory[irqPage<<8 | bus & 0xfe]
+	// CPU calls 2-byte vector at memory[irqPage<<8 | irqData & 0xfe]
 	IrqMode2
 )
 
@@ -66,8 +66,12 @@ var (
 	irqEnable1 = false // iff1
 	irqEnable2 = false // iff2
 
-	irqMode = IrqMode0 // selected interrupt mode
-	irqPage uint8      // page used by IrqMode2
+	resetPending bool       // has Reset been called?
+	nmiPending   bool       // has NMI been called?
+	irqPending   bool       // has IRQ been called?
+	irqData      uint8      // state of data bus supplied when IRQ was called
+	irqMode      = IrqMode0 // selected interrupt mode
+	irqPage      uint8      // page used by IrqMode2
 
 	indexMode IndexMode // has index prefix byte been seen?
 	gotIndex  bool      // have we retrieved an index offset byte yet?
@@ -91,20 +95,29 @@ func Reset() {
 	}
 
 	// reset internal state
-	Halted = false
+	resetPending = false
+	nmiPending = false
+	irqPending = false
+	irqData = 0
 	irqEnable1 = false
 	irqEnable2 = false
 	irqMode = IrqMode0
 	irqPage = 0
 
-	// reset outgoing signals
-	DataBus.Store(0)
-	AddressBus.Store(0)
+	Halted = false
+}
+
+func NMI() {
+	nmiPending = true
+}
+
+func IRQ(data uint8) {
+	irqPending = true
+	irqData = data
 }
 
 func Step() uint16 {
-	checkReset()
-	checkInterrupt()
+	checkSignals()
 
 	DebugPC = pc.Rd16()
 	if !Halted {
@@ -150,29 +163,39 @@ func nextInstruction() {
 	t.fn[opcode]()
 }
 
-func checkReset() {
-	if ResetAssertPin.Load() {
-		//TODO
-		//resetMachine()
+func checkSignals() {
+	if resetPending {
+		Reset()
+		return
 	}
-}
 
-func checkInterrupt() {
-	if irqEnable1 && IrqAssertPin.Load() {
+	if nmiPending {
+		nmiPending = false
+		irqPending = false
 		irqEnable1 = false
-		irqEnable2 = false
-		Halted = false
-		IrqAssertPin.Store(false)
-		switch irqMode {
-		case IrqMode0:
-			panic("irq mode 0 not implemented")
-		case IrqMode1:
-			call(0x38)
-		case IrqMode2:
-			low := uint8(DataBus.Load()) & 0xfe
-			ind := word(irqPage, low)
-			loc := ref(ind).Rd16()
-			call(loc)
-		}
+		call(0x0066)
+		return
+	}
+
+	if !irqPending {
+		return
+	}
+	irqPending = false
+	if !irqEnable1 {
+		return
+	}
+	irqEnable1 = false
+	irqEnable2 = false
+	Halted = false
+	switch irqMode {
+	case IrqMode0:
+		panic("irq mode 0 not implemented")
+	case IrqMode1:
+		call(0x38)
+	case IrqMode2:
+		low := irqData & 0xfe
+		ind := word(irqPage, low)
+		loc := ref(ind).Rd16()
+		call(loc)
 	}
 }

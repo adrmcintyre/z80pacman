@@ -98,12 +98,34 @@ func powerOn() {
 	vblankStart()
 }
 
+var (
+	irqCh   = make(chan uint8)
+	nmiCh   = make(chan struct{})
+	resetCh = make(chan struct{})
+)
+
 func runCPU() {
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
 		for {
+			select {
+			case <-resetCh:
+				resetMachine()
+			case data := <-irqCh:
+				z80.IRQ(data)
+			case <-nmiCh:
+				z80.NMI()
+			case s := <-sigCh:
+				switch s {
+				case syscall.SIGINT:
+					fmt.Println("\nCtrl+C")
+				}
+				os.Exit(1)
+			default:
+			}
+
 			pc := z80.Step()
 
 			if *flagDelayHack {
@@ -116,16 +138,6 @@ func runCPU() {
 				break
 			}
 			debugTraceCPU(pc)
-
-			select {
-			case a := <-sig:
-				switch a {
-				case syscall.SIGINT:
-					fmt.Println("\nCtrl+C")
-				}
-				os.Exit(1)
-			default:
-			}
 		}
 		os.Exit(1)
 	}()
@@ -137,9 +149,6 @@ func resetMachine() {
 }
 
 func resetDevices() {
-	z80.ResetAssertPin.Store(false)
-	z80.IrqAssertPin.Store(false)
-
 	irqLowRegister.Store(0)
 	watchdogReset()
 }

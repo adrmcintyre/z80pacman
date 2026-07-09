@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/adrmcintyre/z80pacman/audio"
-	"github.com/adrmcintyre/z80pacman/z80"
 )
 
 const (
@@ -58,8 +57,7 @@ func vblankStart() {
 		for range vblankTicker.C {
 			audio.Tick()
 			if irqEnableRegister.Load() {
-				z80.DataBus.Store(irqLowRegister.Load())
-				z80.IrqAssertPin.Store(true)
+				irqCh <- uint8(irqLowRegister.Load())
 			}
 			watchdogTick()
 		}

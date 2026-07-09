@@ -2,7 +2,7 @@ package z80
 
 var HookBusRead = func(uint16) uint8 { panic("BusRead not hooked") }
 var HookBusWrite = func(uint16, uint8) { panic("BusWrite not hooked") }
-var HookIoWrite = func() { panic("IoWrite not hooked") }
+var HookIoWrite = func(uint16, uint8) { panic("IoWrite not hooked") }
 var HookAbort = func(msg string) { panic(msg) }
 
 // illegal panics with an "illegal" message when executed.

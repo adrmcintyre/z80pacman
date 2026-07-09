@@ -307,10 +307,10 @@ func newCoreTable() *opTable {
 			// OUT (01h) instruction, byte 23h is written to the peripheral device
 			// mapped to I/O port address 01h.
 			n := imm8()
-			v := a.Rd()
-			AddressBus.Store(uint32(word(v, n)))
-			DataBus.Store(uint32(v))
-			HookIoWrite()
+			acc := a.Rd()
+			//AddressBus.Store(uint32(word(v, n)))
+			//DataBus.Store(uint32(v))
+			HookIoWrite(word(acc, n), acc)
 
 			// Pacman only uses this in two cases to set up an interrupt vector.
 			//

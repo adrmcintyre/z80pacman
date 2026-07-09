@@ -3,8 +3,6 @@ package main
 import (
 	"fmt"
 	"sync/atomic"
-
-	"github.com/adrmcintyre/z80pacman/z80"
 )
 
 var (
@@ -20,7 +18,7 @@ func watchdogTick() {
 	if !*flagNoWatchdog {
 		if watchdogRegister.Load() == 0 {
 			fmt.Println("WATCHDOG!")
-			z80.ResetAssertPin.Store(true)
+			resetCh <- struct{}{}
 		}
 	}
 	watchdogRegister.Add(15 << 28) // subtract 1 from top 4 bits
