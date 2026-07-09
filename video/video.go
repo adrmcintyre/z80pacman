@@ -52,10 +52,11 @@ var (
 	_ *ebiten.Shader // shader for output filtering
 )
 
-func Init() {
-	initColors()
-	initTiles()
-	initSprites()
+func Init(paletteROM, colorROM, tileROM, spriteROM []uint8) {
+	decodePaletteData(paletteROM)
+	decodeColorData(colorROM)
+	decocdeTileData(tileROM)
+	decodeSpriteData(spriteROM)
 	initEbiten(28.0/36.0, 0.75)
 }
 

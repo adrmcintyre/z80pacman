@@ -6,16 +6,15 @@ import (
 )
 
 var (
-	programROM [0x4000]uint8
 	programRAM [0x400]uint8
 )
 
 // ROM appears at 0x0000..0x3fff
 // RAM appears at 0x4000..0x4fff and again from 0x6000
-// I/O appears at 0x5000..0x5fff and again from 0x7000, and it repeats every 0x0100 within this regions.
-// Entire memory maps repeats again from 0x8000.
+// I/O appears at 0x5000..0x5fff and again from 0x7000, and it repeats every 0x0100 within this region.
+// Entire memory map repeats again from 0x8000.
 
-// Note program RAM at 0x4ff0..0x4fff is read directly by the video
+// Note: program RAM at 0x4ff0..0x4fff is read directly by the video
 // hardware to get the sprite number and x/y flip bits. This is
 // controlled by the U6,U5,U4 muxes in the sync bus controller.
 

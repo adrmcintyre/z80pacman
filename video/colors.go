@@ -9,11 +9,6 @@ import (
 // A colorByte is a bb:ggg:rrr colour triplet.
 type colorByte byte
 
-// Colour palettes contain colour indexes corresponding to entries in this table.
-// We use octal notation below as it nicely breaks out each colour channel.
-var colorData = [32]colorByte{
-}
-
 // ColorChannel maps each possible value in a 2-bpp bitmap to a single colour channel.
 var ColorChannel = []color.Color{
 	color.RGBA{},                       // transparent
@@ -61,8 +56,8 @@ var (
 	ColorM [64]colorm.ColorM
 )
 
-// initColors initialises the cache of ebiten.ColorM matrices corresponding to each
-// colour palette.
+// decodeColorData initialises the cache of ebiten.ColorM matrices corresponding
+// to each colour palette.
 //
 // Fortuitously a colour matrix represents four colour channels R, G, B and A.
 // We assign the 3 palette entries for 10, 01 and 11 to channels R, G and B
@@ -73,12 +68,36 @@ var (
 // and 11 with blue. Finally when compositing the bitmaps into a display frame,
 // we mix them with the colour matrix corresponding to the selected palette,
 // and R, G and B are interpreted as the desired colours.
-func initColors() {
+func decodeColorData(rom []uint8) {
+
+	// Colour palettes contain colour indexes corresponding to entries in this table.
+	// We use octal notation below as it nicely breaks out each colour channel.
+	//
+	// For reference, the loaded data will correspond to the following colours:
+	//  0 - black
+	//  1 - red (blinky)
+	//  2 - brown (apple stalk)
+	//  3 - pink (pinky)
+	//
+	//  5 - cyan (inky)
+	//  6 - mid-blue-cyan "steel" (key, bell)
+	//  7 - orange (clyde)
+	//
+	//  9 - yellow (pacman)
+	//
+	// 11 - blue (scared ghost)
+	// 12 - green (leaf)
+	// 13 - dark-cyan (pineapple wood)
+	// 14 - pill
+	// 15 - white
+
+	// entries 16..31 not used
+
 	for i := range 64 {
 		mat := colorm.ColorM{}
 		for j := range 3 {
 			ci := paletteData[i][1+j]
-			r, g, b := colorData[ci].toRGB()
+			r, g, b := colorByte(rom[ci]).toRGB()
 			mat.SetElement(0, j, r)
 			mat.SetElement(1, j, g)
 			mat.SetElement(2, j, b)

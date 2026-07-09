@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/adrmcintyre/z80pacman/audio"
 	"github.com/adrmcintyre/z80pacman/video"
@@ -26,7 +25,6 @@ var (
 	flagCocktail  = flag.Bool("dip-cocktail", false, "cocktail mode")
 
 	// debug flags
-	flagDelayHack  = flag.Bool("delay-hack", false, "simulate pause during pacman delay loop")
 	flagTrace      = flag.Bool("trace", false, "display instruction trace")
 	flagTraceMem   = flag.String("trace-mem", "", "display memory r/w trace; e.g. 4400-4bff,5040")
 	flagNoWatchdog = flag.Bool("no-watchdog", false, "disable watchdog reset")
@@ -35,17 +33,9 @@ var (
 
 func main() {
 	parseFlags()
-
-	video.Init()
-
-	err := audio.Init()
+	machineInit()
 	defer audio.Shutdown()
-	if err != nil {
-		panic(err)
-	}
 
-	programInit()
-	wireCPU()
 	powerOn()
 	runCPU()
 	ebiten.RunGame(&Game{})
@@ -57,20 +47,52 @@ func parseFlags() {
 	debugParseFlags()
 }
 
+func machineInit() {
+	programInit()
+	videoInit()
+	audioInit()
+	wireCPU()
+}
+
 func programInit() {
 	if *flagDebugTest != "" {
 		loadTestProgram(*flagDebugTest)
 	} else {
-		loadProgram("pacman.rom")
+		romSet{
+			"roms/pacman.6e": programROM[0x0000:0x1000],
+			"roms/pacman.6f": programROM[0x1000:0x2000],
+			"roms/pacman.6h": programROM[0x2000:0x3000],
+			"roms/pacman.6j": programROM[0x3000:0x4000],
+		}.Load()
 	}
 }
 
-func loadProgram(path string) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		die("Could not open %s: %v", path, err)
+func videoInit() {
+	var (
+		paletteROM [0x100]uint8
+		colorROM   [0x20]uint8
+		tileROM    [0x1000]uint8
+		spriteROM  [0x1000]uint8
+	)
+	romSet{
+		"roms/82s126.4a": paletteROM[:],
+		"roms/82s123.7f": colorROM[:],
+		"roms/pacman.5e": tileROM[:],
+		"roms/pacman.5f": spriteROM[:],
+	}.Load()
+	video.Init(paletteROM[:], colorROM[:], tileROM[:], spriteROM[:])
+}
+
+func audioInit() {
+	var (
+		waveROM [0x100]uint8
+	)
+	romSet{
+		"roms/82s126.1m": waveROM[:],
+	}.Load()
+	if err := audio.Init(waveROM[:]); err != nil {
+		die("initialising audio: %v", err)
 	}
-	copy(programROM[:], data)
 }
 
 func wireCPU() {
@@ -81,15 +103,16 @@ func wireCPU() {
 }
 
 func powerOn() {
+	fmt.Println("[POWER ON]")
 	resetMachine()
 	ioInit()
 	vblankStart()
 }
 
 var (
-	irqCh   = make(chan uint8)
-	nmiCh   = make(chan struct{})
-	resetCh = make(chan struct{})
+	cpuResetCh = make(chan struct{}, 1)
+	cpuNmiCh   = make(chan struct{}, 1)
+	cpuIrqCh   = make(chan uint8, 1)
 )
 
 func runCPU() {
@@ -99,12 +122,12 @@ func runCPU() {
 	go func() {
 		for {
 			select {
-			case <-resetCh:
-				resetMachine()
-			case data := <-irqCh:
-				z80.IRQ(data)
-			case <-nmiCh:
+			case <-cpuResetCh:
+				z80.Reset()
+			case <-cpuNmiCh:
 				z80.NMI()
+			case irqData := <-cpuIrqCh:
+				z80.IRQ(irqData)
 			case s := <-sigCh:
 				switch s {
 				case syscall.SIGINT:
@@ -117,12 +140,6 @@ func runCPU() {
 
 			pc := z80.Step()
 
-			if *flagDelayHack {
-				if pc == 0x32ed {
-					time.Sleep(100 * time.Millisecond)
-				}
-			}
-
 			if breakpointed(pc) {
 				break
 			}
@@ -134,7 +151,8 @@ func runCPU() {
 }
 
 func resetMachine() {
-	z80.Reset()
+	fmt.Println("[RESET]")
+	cpuResetCh <- struct{}{}
 	resetDevices()
 }
 

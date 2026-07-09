@@ -4,6 +4,10 @@ import (
 	"sync"
 )
 
+// NOTE: in the real thing, ROM 82s126.3m is used for sequencing
+// the audio hardware's state machine. We do not attempt to emulate
+// at that level of detail.
+
 const (
 	// TODO - we're rederiving the VBLANK period here
 	clockFreq        = 18_432_000 / 3

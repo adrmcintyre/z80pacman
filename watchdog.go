@@ -17,8 +17,8 @@ func watchdogReset() {
 func watchdogTick() {
 	if !*flagNoWatchdog {
 		if watchdogRegister.Load() == 0 {
-			fmt.Println("WATCHDOG!")
-			resetCh <- struct{}{}
+			fmt.Println("[WATCHDOG!]")
+			resetMachine()
 		}
 	}
 	watchdogRegister.Add(15 << 28) // subtract 1 from top 4 bits

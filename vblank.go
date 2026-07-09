@@ -57,7 +57,7 @@ func vblankStart() {
 		for range vblankTicker.C {
 			audio.Tick()
 			if irqEnableRegister.Load() {
-				irqCh <- uint8(irqLowRegister.Load())
+				cpuIrqCh <- uint8(irqLowRegister.Load())
 			}
 			watchdogTick()
 		}

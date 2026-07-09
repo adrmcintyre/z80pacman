@@ -30,7 +30,9 @@ type Stream struct{}
 var stream *Stream
 
 // Init constructs an initialised Audio struct.
-func Init() error {
+func Init(rom []uint8) error {
+	decodeWaveData(rom)
+
 	stream = &Stream{}
 
 	audioContext := ebiten_audio.NewContext(ebitenSampleRate)

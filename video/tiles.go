@@ -12,30 +12,32 @@ const (
 	tileWidth  = 8
 	tileHeight = 8
 	tileCount  = 256
+	tileBpp    = 2
+	tileLen    = tileWidth * tileHeight * tileBpp / 8
 )
-
-// A tileBitmap encodes an 8x8 2-bits-per-pixel tile image.
-// The pixel order within each word is: 00:11:22:33:44:55:66:77
-type tileBitmap [tileHeight]uint16
-
-// tileData defines a bitmap for each tile identifier.
-var tileData = [tileCount]tileBitmap{
-}
 
 // tileImages defines an ebiten Image for each tile identifier.
 var tileImages [tileCount]*ebiten.Image
 
-// initTiles initialises the Image cache for each tile.
-func initTiles() {
-	for i, bitmap := range tileData {
-		img := ebiten.NewImage(tileWidth, tileHeight)
-		for y, row := range bitmap {
-			for x := range tileWidth {
-				img.Set(x, y, ColorChannel[row&0b11])
-				row >>= 2
-			}
+func decocdeTileData(rom []byte) {
+	// The 4 pixels from each byte are vertical strips.
+	// The first 8 bytes draw the lower half of the tile, left to right, top to bottom.
+	// The last 8 bytes defining the tile draw the top half of the tile.
+	//
+	// We decode this into a saner format.
+	for tileNum := range 256 {
+		tileImages[tileNum] = ebiten.NewImage(tileWidth, tileHeight)
+	}
+	for i, b := range rom {
+		tileNum := i / tileLen
+		offset := i % tileLen
+		for pixelIndex := range 4 {
+			x := 7 - (offset & 0x07)
+			y := (((offset>>1)&0x04 | (3 - pixelIndex)) + 4) & 0x07
+			pHi := (b >> pixelIndex) & 1
+			pLo := (b >> (pixelIndex + 4)) & 1
+			tileImages[tileNum].Set(x, y, ColorChannel[pHi<<1|pLo])
 		}
-		tileImages[i] = img
 	}
 }
 

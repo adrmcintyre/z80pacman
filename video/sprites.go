@@ -12,29 +12,37 @@ const (
 	spriteWidth  = 16
 	spriteHeight = 16
 	spriteCount  = 64
+	spriteBpp    = 2
+	spriteLen    = spriteWidth * spriteHeight * spriteBpp / 8
 )
-
-// A spriteBitmap encodes a 16x16, 2-bits-per-pixel sprite.
-type spriteBitmap [spriteHeight]uint32
-
-// spriteData defines a bitmap for each sprite identifier.
-var spriteData = [spriteCount]spriteBitmap{
-}
 
 // spriteImages contains an ebiten Image for each sprite identifier.
 var spriteImages [spriteCount]*ebiten.Image
 
-// initSprites initialises the Image cache from the 2-bpp source data.
-func initSprites() {
-	for i, bitmap := range spriteData {
-		img := ebiten.NewImage(spriteWidth, spriteHeight)
-		for y, row := range bitmap {
-			for x := range spriteWidth {
-				img.Set(x, y, ColorChannel[row&0b11])
-				row >>= 2
-			}
+func decodeSpriteData(rom []uint8) {
+	// Decoding the sprites works similarly to decoding the tiles. Each byte
+	// represents 4 pixels in a column, stored low bits then high bits just
+	// like the tiles. Each 8 bytes draw a strip of 8x4 pixels, just like tiles.
+	// These 8 strips are then arranged:
+	// 5 1
+	// 6 2
+	// 7 3
+	// 4 0
+	//
+	for spriteNum := range 64 {
+		spriteImages[spriteNum] = ebiten.NewImage(spriteWidth, spriteHeight)
+	}
+
+	for i, b := range rom {
+		spriteNum := i / spriteLen
+		offset := i % spriteLen
+		for pixelIndex := range 4 {
+			x := 15 - ((offset>>2)&0x08 | offset&0x07)
+			y := (((offset>>1)&0x0c | (3 - pixelIndex)) + 12) & 0x0f
+			pHi := (b >> pixelIndex) & 1
+			pLo := (b >> (pixelIndex + 4)) & 1
+			spriteImages[spriteNum].Set(x, y, ColorChannel[pHi<<1|pLo])
 		}
-		spriteImages[i] = img
 	}
 }
 
