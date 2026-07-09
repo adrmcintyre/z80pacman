@@ -8,7 +8,7 @@ func newBitTable() *opTable {
 	t := newTable()
 
 	for rrr := range 8 {
-		ea := reg(rrr)
+		ea := reg[rrr]
 		for bit := range 8 {
 			mask := uint8(1) << bit
 			t.def(

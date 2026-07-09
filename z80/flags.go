@@ -71,14 +71,16 @@ func setLogicFlags() {
 	flagS.put((v & (1 << 7)) != 0)
 	flagZ.put(v == 0)
 	flagPV.put(parity(v))
-	(flagN | flagC).reset()
+	flagN.reset()
+	flagC.reset()
 }
 
 // setRotFlags sets common flags used by the shift and rotate instructions.
 // Sets the C flag according to co; clears the H and N flags.
 func setRotFlags(co bool) {
 	flagC.put(co)
-	(flagH | flagN).reset()
+	flagH.reset()
+	flagN.reset()
 }
 
 // setExtRotFlags sets additional flags used by extended shift and rotate

@@ -12,12 +12,12 @@ type WordRef interface {
 	Wr16(uint16)
 }
 
-// word is a helper that converts to bytes to a 16-bit word.
+// word is a helper that converts two bytes to a 16-bit word.
 func word(hi, lo uint8) uint16 {
 	return (uint16(hi) << 8) | uint16(lo)
 }
 
-// unword is a helper that converts a 16-bit word to two bytes (hi, lo)
-func unword(w uint16) (uint8, uint8) {
+// unword is a helper that converts a 16-bit word to two bytes.
+func unword(w uint16) (hi uint8, lo uint8) {
 	return uint8(w >> 8), uint8(w)
 }

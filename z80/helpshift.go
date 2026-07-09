@@ -86,3 +86,45 @@ func srl(ea ByteRef) uint8 {
 	setRotFlags(v0 != 0)
 	return res
 }
+
+// rld treats the lower nibble of A and the contents of the byte pointed
+// to by HL as a 12 bit word, which it then rotates left by 4 bits.
+//
+// (HL)[7..4] <- (HL)[3..0] <- A[3..0] <- (HL)[7..4]
+// Affects S,Z,H,PV,N flags.
+func rld() {
+	loc := ref(hl.Rd16())
+	memOld := loc.Rd()
+	aOld := a.Rd()
+	memNew := (memOld << 4) | (aOld & 0x0f)
+	aNew := (aOld & 0xf0) | (memNew >> 4)
+	a.Wr(aNew)
+	loc.Wr(memNew)
+
+	flagS.put((aNew & 1 << 7) != 0)
+	flagZ.put(aNew == 0)
+	flagH.reset()
+	flagPV.put(parity(aNew))
+	flagN.reset()
+}
+
+// rrd treats the lower nibble of A and the contents of the byte pointed
+// to by HL as a 12 bit word, which it then rotates right by 4 bits.
+//
+// (HL)[3..0] <- (HL)[7..4] <- A[3..0] <- (HL)[3..0]
+// Affects S,Z,H,PV,N flags.
+func rrd() {
+	loc := ref(hl.Rd16())
+	memOld := loc.Rd()
+	aOld := a.Rd()
+	memNew := (aOld << 4) | (memOld >> 4)
+	aNew := (aOld & 0xf0) | (memOld & 0x0f)
+	a.Wr(aNew)
+	loc.Wr(memNew)
+
+	flagS.put((aNew & 1 << 7) != 0)
+	flagZ.put(aNew == 0)
+	flagH.reset()
+	flagPV.put(parity(aNew))
+	flagN.reset()
+}

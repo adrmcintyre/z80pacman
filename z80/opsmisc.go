@@ -7,18 +7,21 @@ var miscTable = newMiscTable()
 func newMiscTable() *opTable {
 	t := newTable()
 
-	for r := range 8 {
-		// not (HL)
-		if r != 6 {
-			t.def(0b01_000_000|r<<3, unimplemented, "in %r,(%n)", r)
-			t.def(0b01_000_001|r<<3, unimplemented, "out (%n),%r", r)
+	for rrr := range 8 {
+		if rrr == 6 {
+			// no (hl) mode for these
+			continue
 		}
+		r := reg[rrr]
+		_ = r
+		t.def(0b01_000_000|rrr<<3, func() { unimplemented() }, "in %r,(c)", rrr)
+		t.def(0b01_000_001|rrr<<3, func() { unimplemented() }, "out (c),%r", rrr)
 	}
 
-	for i := range 4 {
-		ea := dd(i)
+	for dd := range 4 {
+		ea := dd_reg[dd]
 		t.def(
-			0b01_000_010|i<<4, func() {
+			0b01_000_010|dd<<4, func() {
 				x := hlMux.Rd16()
 				y := ea.Rd16()
 
@@ -31,10 +34,10 @@ func newMiscTable() *opTable {
 
 				hlMux.Wr16(word(resHi, resLo))
 			},
-			"sbc %h,%d", i)
+			"sbc %h,%d", dd)
 
 		t.def(
-			0b01_001_010|i<<4, func() {
+			0b01_001_010|dd<<4, func() {
 				x := hlMux.Rd16()
 				y := ea.Rd16()
 
@@ -47,23 +50,23 @@ func newMiscTable() *opTable {
 
 				hlMux.Wr16(word(resHi, resLo))
 			},
-			"adc %h,%d", i)
+			"adc %h,%d", dd)
 
 		t.def(
-			0b01_000_011|i<<4, func() {
+			0b01_000_011|dd<<4, func() {
 				loc := imm16()
 				w := ea.Rd16()
 				ref(loc).Wr16(w)
 			},
-			"ld (%N),%d", i)
+			"ld (%N),%d", dd)
 
 		t.def(
-			0b01_001_011|i<<4, func() {
+			0b01_001_011|dd<<4, func() {
 				loc := imm16()
 				w := ref(loc).Rd16()
 				ea.Wr16(w)
 			},
-			"ld %d,(%N)", i)
+			"ld %d,(%N)", dd)
 	}
 
 	t.def(
@@ -109,89 +112,48 @@ func newMiscTable() *opTable {
 
 	t.def(0b01_001_111, unimplemented, "ld r,a")
 	t.def(0b01_011_111, unimplemented, "ld a,r")
-	t.def(0b01_100_111, unimplemented, "rrd")
-	t.def(0b01_101_111, unimplemented, "rld")
+	t.def(0b01_100_111, rrd, "rrd")
+	t.def(0b01_101_111, rld, "rld")
 
-	//0b10_1rd_000 // +ldi +ldir -ldd -lddr
-	//0b10_1rd_001 // -cpi +cpir -cpd -cpdr
-	//0b10_1rd_010 // -ini -inir -ind -indr
-	//0b10_1rd_011 // -outi -otir -outd -otdr
+	ldop := []string{"ldi", "ldd", "ldir", "lddr"}
+	cpop := []string{"cpi", "cpd", "cpir", "cpdr"}
+	inop := []string{"ini", "ind", "inir", "indr"}
+	outop := []string{"outi", "outd", "otir", "otdr"}
+	dirDelta := []uint16{1, 0xffff}
 
-	t.def(0b10_100_000, func() { ldi() }, "ldi")
+	for repeatBit := range 2 {
+		repeat := repeatBit == 1
+		for dirBit := range 2 {
+			delta := dirDelta[dirBit]
+			index := repeatBit*2 + dirBit
 
-	t.def(
-		0b10_110_000, func() {
-			if ldi() {
-				jmp(pc.Rd16() - 2)
-			}
-		},
-		"ldir")
+			//0b10_1rd_000 // ldi ldd ldir lddr
+			t.def(
+				0b10_100_000|repeatBit<<4|dirBit<<3, func() {
+					blockTx(delta, repeat)
+				},
+				ldop[index])
 
-	t.def(0b10_100_001, func() { cpi() }, "cpi")
+			//0b10_1rd_001 // cpi cpd cpir cpdr
+			t.def(
+				0b10_100_001|repeatBit<<4|dirBit<<3, func() {
+					blockCp(delta, repeat)
+				},
+				cpop[index])
 
-	t.def(
-		0b10_110_001, func() {
-			if cpi() {
-				jmp(pc.Rd16() - 2)
-			}
-		},
-		"cpir")
+			//0b10_1rd_010 // ini ind inir indr
+			t.def(
+				0b10_100_010|repeatBit<<4|dirBit<<3,
+				unimplemented,
+				inop[index])
+
+			//0b10_1rd_011 // outi outd otir otdr
+			t.def(
+				0b10_100_011|repeatBit<<4|dirBit<<3,
+				unimplemented,
+				outop[index])
+		}
+	}
 
 	return t
-}
-
-// ldi performs the following operation:
-// (DE) <- (HL) ; copy source to dest
-// DE <- DE + 1 ; increment dest pointer
-// HL <- HL + 1 ; increment source pointer
-// BC <- BC – 1 ; decrement counter
-// Affects H,PV,N flags.
-func ldi() bool {
-	src := hl.Rd16()
-	dst := de.Rd16()
-	count := bc.Rd16()
-
-	v := ref(src).Rd()
-	ref(dst).Wr(v)
-	dst += 1
-	src += 1
-	count -= 1
-
-	hl.Wr16(src)
-	de.Wr16(dst)
-	bc.Wr16(count)
-
-	(flagH | flagN).reset()
-	flagPV.put(count != 0)
-
-	return count != 0
-}
-
-// cpi performs the following operation:
-// A - (HL)     ; compare A with source
-// HL <- HL +1  ; increment source pointer
-// BC <- BC – 1 ; decrement counter
-// Affects S,Z,H,PV,N flags.
-func cpi() bool {
-	src := hl.Rd16()
-	count := bc.Rd16()
-
-	x := a.Rd()
-	y := ref(src).Rd()
-	src += 1
-	count -= 1
-
-	hl.Wr16(src)
-	bc.Wr16(count)
-
-	delta := x - y
-	c4 := (delta^x^y)&(1<<4) != 0
-
-	flagS.put(delta&(1<<7) != 0)
-	flagZ.put(delta == 0)
-	flagH.put(c4)
-	flagPV.put(count != 0)
-	flagN.set()
-
-	return !(count == 0 || delta == 0)
 }

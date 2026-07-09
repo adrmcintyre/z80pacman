@@ -18,7 +18,7 @@ func (r *Reg16) Rd16() uint16 { return uint16(*r) }
 // Wr16 implements the WordRef interface.
 func (r *Reg16) Wr16(w uint16) { *r = Reg16(w) }
 
-// A RegPair references a pair of 8-bit registers than
+// A RegPair references a pair of 8-bit registers that
 // can act as a single 16-bit register.
 type RegPair struct {
 	hi *Reg
@@ -79,57 +79,12 @@ func (hlIndMuxer HlIndMuxer) addr() Addr {
 }
 
 // reg selects an 8-bit register
-func reg(i int) ByteRef {
-	switch i {
-	case 0:
-		return b
-	case 1:
-		return c
-	case 2:
-		return d
-	case 3:
-		return e
-	case 4:
-		return h // should really be muxed
-	case 5:
-		return l // should really be muxed
-	case 6:
-		return hlIndMuxer
-	case 7:
-		return a
-	default:
-		panic("invalid reg selector")
-	}
+var reg = [8]ByteRef{
+	b, c, d, e, h, l, hlIndMuxer, a,
 }
 
-// qq selects a 16-bit register from bc,de,hl,af
-func qq(i int) WordRef {
-	switch i {
-	case 0b00:
-		return bc
-	case 0b01:
-		return de
-	case 0b10:
-		return hlMuxer
-	case 0b11:
-		return af
-	default:
-		panic("invalid qq selector")
-	}
-}
+// qq_reg selects a 16-bit register from bc,de,hl,af
+var qq_reg = [4]WordRef{bc, de, hlMuxer, af}
 
-// dd selects a 16-bit register from bc,de,hl,sp
-func dd(i int) WordRef {
-	switch i {
-	case 0b00:
-		return bc
-	case 0b01:
-		return de
-	case 0b10:
-		return hlMuxer
-	case 0b11:
-		return sp
-	default:
-		panic("invalid dd selector")
-	}
-}
+// dd_reg selects a 16-bit register from bc,de,hl,sp
+var dd_reg = [4]WordRef{bc, de, hlMuxer, sp}

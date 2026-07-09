@@ -8,18 +8,17 @@ func newCoreTable() *opTable {
 	t := newTable()
 
 	for rrr := range 8 {
-		dst := reg(rrr)
+		dst := reg[rrr]
 		for sss := range 8 {
-			src := reg(sss)
+			src := reg[sss]
 			t.def(
 				0b01_000_000|(rrr<<3)|sss,
 				func() { dst.Wr(src.Rd()) },
 				"ld %r,%r", rrr, sss)
 
 		}
-	}
-	for rrr := range 8 {
-		dst := reg(rrr)
+
+		// ld r,n
 		ld_r_n := func() { dst.Wr(imm8()) }
 		if rrr == 6 {
 			// Special case to cover "ld (ix+#d),n" / "ld (iy+#d),n"
@@ -44,31 +43,31 @@ func newCoreTable() *opTable {
 	t.def(0b00_110_010, func() { ref(imm16()).Wr(a.Rd()) }, "ld (%N),a")
 	t.def(0b00_111_010, func() { a.Wr(ref(imm16()).Rd()) }, "ld a,(%N)")
 
-	for i := range 4 {
-		dst := dd(i)
+	for dd := range 4 {
+		dst := dd_reg[dd]
 		t.def(
-			0b00_000_001|(i<<4),
+			0b00_000_001|(dd<<4),
 			func() { dst.Wr16(imm16()) },
-			"ld %d,%N", i)
+			"ld %d,%N", dd)
 	}
 	t.def(
 		0b11_111_001,
 		func() { sp.Wr16(hlMux.Rd16()) },
 		"ld sp,%h")
 
-	for i := range 4 {
+	for qq := range 4 {
 		// push qq
-		ea := qq(i)
+		ea := qq_reg[qq]
 		t.def(
-			0b11_000_101|i<<4,
+			0b11_000_101|qq<<4,
 			func() { push16(ea.Rd16()) },
-			"push %q", i)
+			"push %q", qq)
 
 		// pop qq
 		t.def(
-			0b11_000_001|i<<4,
+			0b11_000_001|qq<<4,
 			func() { ea.Wr16(pop16()) },
-			"pop %q", i)
+			"pop %q", qq)
 	}
 
 	t.def(
@@ -115,16 +114,16 @@ func newCoreTable() *opTable {
 		},
 		"ex de,hl")
 
-	for i := range 9 {
+	for rrr := range 9 {
 		var (
 			src    ByteRef
 			opcode int
 			arg    string
 		)
-		if i < 8 {
+		if rrr < 8 {
 			// <op> a,r
-			src = reg(i)
-			opcode = 0b10_000_000 | i
+			src = reg[rrr]
+			opcode = 0b10_000_000 | rrr
 			arg = "%r"
 		} else {
 			// <op> a,imm
@@ -133,20 +132,20 @@ func newCoreTable() *opTable {
 			arg = "%n"
 		}
 
-		t.def(opcode|0b000<<3, func() { a.Wr(adc(a.Rd(), src.Rd(), false)) }, "add a,"+arg, i)
-		t.def(opcode|0b001<<3, func() { a.Wr(adc(a.Rd(), src.Rd(), flagC.get())) }, "adc a,"+arg, i)
-		t.def(opcode|0b010<<3, func() { a.Wr(sbc(a.Rd(), src.Rd(), false)) }, "sub "+arg, i)
-		t.def(opcode|0b011<<3, func() { a.Wr(sbc(a.Rd(), src.Rd(), flagC.get())) }, "sbc "+arg, i)
+		t.def(opcode|0b000<<3, func() { a.Wr(adc(a.Rd(), src.Rd(), false)) }, "add a,"+arg, rrr)
+		t.def(opcode|0b001<<3, func() { a.Wr(adc(a.Rd(), src.Rd(), flagC.get())) }, "adc a,"+arg, rrr)
+		t.def(opcode|0b010<<3, func() { a.Wr(sbc(a.Rd(), src.Rd(), false)) }, "sub "+arg, rrr)
+		t.def(opcode|0b011<<3, func() { a.Wr(sbc(a.Rd(), src.Rd(), flagC.get())) }, "sbc "+arg, rrr)
 
-		t.def(opcode|0b100<<3, func() { a.Wr(a.Rd() & src.Rd()); setLogicFlags(); flagH.set() }, "and "+arg, i)
-		t.def(opcode|0b101<<3, func() { a.Wr(a.Rd() ^ src.Rd()); setLogicFlags(); flagH.reset() }, "xor "+arg, i)
-		t.def(opcode|0b110<<3, func() { a.Wr(a.Rd() | src.Rd()); setLogicFlags(); flagH.reset() }, "or "+arg, i)
+		t.def(opcode|0b100<<3, func() { a.Wr(a.Rd() & src.Rd()); setLogicFlags(); flagH.set() }, "and "+arg, rrr)
+		t.def(opcode|0b101<<3, func() { a.Wr(a.Rd() ^ src.Rd()); setLogicFlags(); flagH.reset() }, "xor "+arg, rrr)
+		t.def(opcode|0b110<<3, func() { a.Wr(a.Rd() | src.Rd()); setLogicFlags(); flagH.reset() }, "or "+arg, rrr)
 
-		t.def(opcode|0b111<<3, func() { _ = sbc(a.Rd(), src.Rd(), false) }, "cp "+arg, i)
+		t.def(opcode|0b111<<3, func() { _ = sbc(a.Rd(), src.Rd(), false) }, "cp "+arg, rrr)
 	}
 
 	for rrr := range 8 {
-		ea := reg(rrr)
+		ea := reg[rrr]
 		t.def(0b00_000_100|rrr<<3, func() { inc(ea) }, "inc %r", rrr)
 		t.def(0b00_000_101|rrr<<3, func() { dec(ea) }, "dec %r", rrr)
 	}
@@ -187,7 +186,8 @@ func newCoreTable() *opTable {
 	t.def(
 		0b00_101_111, func() {
 			a.Wr(^a.Rd())
-			(flagH | flagN).set()
+			flagH.set()
+			flagN.set()
 		},
 		"cpl")
 
@@ -204,11 +204,11 @@ func newCoreTable() *opTable {
 		//accepted until *after* the instruction following this
 	}, "ei")
 
-	for i := range 4 {
-		ea := dd(i)
-		t.def(0b00_001_001|i<<4, func() { hlMux.Wr16(add16(hlMux.Rd16(), ea.Rd16())) }, "add %h,%d", i)
-		t.def(0b00_000_011|i<<4, func() { ea.Wr16(ea.Rd16() + 1) }, "inc %d", i)
-		t.def(0b00_001_011|i<<4, func() { ea.Wr16(ea.Rd16() - 1) }, "dec %d", i)
+	for dd := range 4 {
+		ea := dd_reg[dd]
+		t.def(0b00_001_001|dd<<4, func() { hlMux.Wr16(add16(hlMux.Rd16(), ea.Rd16())) }, "add %h,%d", dd)
+		t.def(0b00_000_011|dd<<4, func() { ea.Wr16(ea.Rd16() + 1) }, "inc %d", dd)
+		t.def(0b00_001_011|dd<<4, func() { ea.Wr16(ea.Rd16() - 1) }, "dec %d", dd)
 	}
 
 	t.def(0b00_000_111, func() { rlc(a) }, "rlca")
@@ -332,6 +332,13 @@ func newCoreTable() *opTable {
 			//		// enter main program
 		},
 		"out (%n),a")
+
+	t.def(
+		0b11_011_011, func() {
+			_ = imm8()
+			unimplemented()
+		},
+		"in a,(%n)")
 
 	return t
 }
