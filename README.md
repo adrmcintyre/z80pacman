@@ -11,8 +11,9 @@ Legally obtain a Midway Pacman ROM set and place them in the roms/ directory, se
 go build && ./z80pacman
 ```
 
-[!NOTE] do not worry if you see an error like `[CAMetalLayer nextDrawable] returning nil because allocation failed.` under OSX.
-This is a known issue with the drivers used by ebiten and does not indicate an underlying problem.
+> [!NOTE]
+> Do not worry if you see an error like `[CAMetalLayer nextDrawable] returning nil because allocation failed.` under OSX.
+> This is a known issue with the drivers used by ebiten and does not indicate an underlying problem.
 
 ## Options
 
