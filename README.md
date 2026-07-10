@@ -15,30 +15,43 @@ go build && ./z80pacman
 > Do not worry if you see an error like `[CAMetalLayer nextDrawable] returning nil because allocation failed.` under OSX.
 > This is a known issue with the drivers used by ebiten and does not indicate an underlying problem.
 
+## Keyboard Controls
+
+| Key | Action |
+| -- | -- |
+| C | add a credit. |
+| 1 | start 1 player game. |
+| 2 | start 2 player game. |
+| &uarr; | up |
+| &larr; | left |
+| &rarr; | right |
+| &darr; | down |
+| T | inverts the state of "-dip-test" while held down. |
+
 ## Options
 
 ### Dip Switches
 The following options configure virtual dip-switches, as used in the original hardware:
-* `-dip-alternate` use alternate ghost names.
-* `-dip-bonus` score at which the one and only bonus life is awarded: 0 (none), 10000 (default), 15000, 20000.
-* `-dip-cocktail` enables cocktail mode: inverts P2's screen.
-* `-dip-coins` number of coins per credit:
-    * 0: free play
-    * 1: 1 coin per credit (default)
-    * 2: 2 coins per credit
-    * 3: 2 credits per coin
-* `-dip-hard` increases difficulty: faster ghosts.
-* `-dip-lives` sets how many lives pacman starts with: 1, 2, 3 (default), 5.
-* `-dip-rack` enables rack-test mode: cycles through every screen once a game is started.
-* `-dip-test` enables test mode (memory test, displays configuration, sound hardware triggered by player inputs).
+| flag | meaning |
+| --- | --- |
+| `-dip-alternate` | Use alternate ghost names. |
+| `-dip-bonus=N` | Score at which the one and only bonus life is awarded: 0 (none), 10000 (default), 15000, 20000. |
+| `-dip-cocktail` | Enables cocktail mode: inverts P2's screen. |
+| `-dip-coins=N` | Number of coins per credit: <br> 0: free play <br> 1: 1 coin per credit (default) <br> 2: 2 coins per credit <br> 3: 2 credits per coin |
+| `-dip-hard` | Increases difficulty: faster ghosts. |
+| `-dip-lives=N` | Sets how many lives pacman starts with: 1, 2, 3 (default), 5. |
+| `-dip-rack` | Enables rack-test mode: cycles through every screen once a game is started. |
+| `-dip-test` | Enables test mode (memory test, displays configuration, sound hardware triggered by player inputs). |
 
 ### Debugging
 These options can be used for debugging the emulator itself:
 
-* `-no-watchdog` disables watchdog reset.
-* `-debug-test` loads specified built in test program.
-* `-trace` displays a trace of executed instructions.
-* `-trace-mem` displays a memory r/w trace: specify a comma separate list of address or address-ranges, e.g. 4400-4bff,5040
+| Flag | Meaning |
+| --- | --- |
+| `-no-watchdog` | disables watchdog reset. |
+| `-debug-test` | loads specified built in test program. |
+| `-trace` | displays a trace of executed instructions. |
+| `-trace-mem=LIST` | displays a memory r/w trace: specify a comma separate list of address or address-ranges, e.g. `4400-4bff,5040` |
 
 # Implementation Notes
 
