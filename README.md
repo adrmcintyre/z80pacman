@@ -1,6 +1,7 @@
 # z80pacman
 
-This is an emulator for Namco's pacman, written in go, utilising the ebiten gaming library for I/O, and running the original z80 code in an emulated processor.
+This is an emulator for Namco's pacman, written in go, utilising the ebiten gaming library for I/O, and running the original z80 code in an emulated processor. Please see [z80/README.md](z80/README.md) for more
+information on the z80 emulator.
 
 ## Running
 
