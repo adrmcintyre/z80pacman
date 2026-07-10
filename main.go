@@ -80,6 +80,7 @@ func videoInit() {
 		"roms/pacman.5e": tileROM[:],
 		"roms/pacman.5f": spriteROM[:],
 	}.Load()
+
 	video.Init(paletteROM[:], colorROM[:], tileROM[:], spriteROM[:])
 }
 
@@ -90,6 +91,7 @@ func audioInit() {
 	romSet{
 		"roms/82s126.1m": waveROM[:],
 	}.Load()
+
 	if err := audio.Init(waveROM[:]); err != nil {
 		die("initialising audio: %v", err)
 	}
