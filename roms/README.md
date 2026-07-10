@@ -1,6 +1,6 @@
 # ROMs
 
-Legally obtain a Midway Pacman ROM set and place them in this directory,
+Legally obtain a Namco or Midway Pacman ROM set and place them in this directory,
 using the following naming convention:
 
 Program data:
